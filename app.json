@@ -20,7 +20,7 @@
       "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1a7a8a"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
