@@ -1,6 +1,7 @@
 import { Account, Category, Recurring, Transaction } from './types';
 import { catById } from './catalog';
 
+
 const LIQUID_TYPES: Account['type'][] = ['CASH', 'BANK', 'DEBIT_CARD', 'SAVINGS', 'INVESTMENT', 'DIGITAL_WALLET'];
 const CREDIT_TYPES: Account['type'][] = ['CREDIT_CARD'];
 
@@ -58,7 +59,7 @@ export function spentByCategory(txs: Transaction[], categoryId: string, range = 
 
 export interface CategorySpend { id: string; amount: number; category?: Category }
 
-export function expenseByCategory(txs: Transaction[], range = 30): CategorySpend[] {
+export function expenseByCategory(txs: Transaction[], range = 30, customCategories: Category[] = []): CategorySpend[] {
   const since = Date.now() - range * 86400000;
   const map: Record<string, number> = {};
   for (const t of txs) {
@@ -68,7 +69,7 @@ export function expenseByCategory(txs: Transaction[], range = 30): CategorySpend
     map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
   }
   return Object.entries(map)
-    .map(([id, amt]) => ({ id, amount: amt, category: catById(id) }))
+    .map(([id, amt]) => ({ id, amount: amt, category: catById(id, customCategories) }))
     .sort((a, b) => b.amount - a.amount);
 }
 

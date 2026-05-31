@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Account, Transaction } from '../data/types';
+import { Account, Category, Transaction } from '../data/types';
 import { catById } from '../data/catalog';
 import { fmtMXN, fmtTime } from '../data/format';
 import { useTheme } from '../theme/ThemeContext';
@@ -11,13 +11,14 @@ import { CategoryBadge } from './Badges';
 export interface TransactionRowProps {
   tx: Transaction;
   accounts: Account[];
+  customCategories?: Category[];
   divider?: boolean;
   onPress?: () => void;
 }
 
-export function TransactionRow({ tx, accounts, divider, onPress }: TransactionRowProps) {
+export function TransactionRow({ tx, accounts, customCategories = [], divider, onPress }: TransactionRowProps) {
   const { t } = useTheme();
-  const cat = tx.categoryId ? catById(tx.categoryId) : undefined;
+  const cat = tx.categoryId ? catById(tx.categoryId, customCategories) : undefined;
   const acc = accounts.find(a => a.id === tx.accountId);
   const dest = tx.destinationAccountId ? accounts.find(a => a.id === tx.destinationAccountId) : undefined;
   const isTransfer = tx.type === 'TRANSFER';

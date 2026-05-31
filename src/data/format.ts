@@ -30,8 +30,9 @@ export const fmtMXN = (cents: number): string => {
 
 export const fmtShort = (cents: number): string => {
   const v = cents / 100;
-  if (Math.abs(v) >= 1000) return '$' + (v / 1000).toFixed(1) + 'k';
-  return '$' + v.toFixed(0);
+  const sym = CURRENCY_SYMBOLS[CURRENT_CURRENCY] || '$';
+  if (Math.abs(v) >= 1000) return sym + (v / 1000).toFixed(1) + 'k';
+  return sym + v.toFixed(0);
 };
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];

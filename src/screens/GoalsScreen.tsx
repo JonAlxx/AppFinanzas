@@ -9,6 +9,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { colorFor, softFor } from '../theme/theme';
 
 import { Card } from '../components/Card';
+import { EmptyState } from '../components/EmptyState';
 import { ProgressBar } from '../components/ProgressBar';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Icon } from '../icons/Icon';
@@ -72,6 +73,15 @@ export function GoalsScreen() {
         </View>
 
         <View style={{ marginTop: 18, gap: 12 }}>
+          {state.goals.length === 0 ? (
+            <EmptyState
+              icon="target"
+              color="rose"
+              title="Sin metas de ahorro"
+              message="Define metas para ahorrar hacia algo que quieras: viaje, fondo de emergencia, artículo especial."
+              action="Próximamente"
+            />
+          ) : null}
           {state.goals.map(g => {
             const pct = (g.current / g.target) * 100;
             const c = colorFor(t, g.color);

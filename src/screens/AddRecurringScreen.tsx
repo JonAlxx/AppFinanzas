@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
-  Animated, Pressable, ScrollView, Text, TextInput, View,
+  Alert, Animated, Pressable, ScrollView, Text, TextInput, View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -160,8 +160,20 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
         title={editingId ? 'Editar recurrente' : 'Nuevo recurrente'}
         rightIcon={editingId ? 'trash' : null}
         onRight={editingId ? () => {
-          dispatch({ type: 'DELETE_RECURRING', id: editingId });
-          back();
+          Alert.alert(
+            'Eliminar recurrente',
+            '¿Seguro que quieres eliminar este recurrente? No afecta los movimientos ya generados.',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Eliminar', style: 'destructive',
+                onPress: () => {
+                  dispatch({ type: 'DELETE_RECURRING', id: editingId });
+                  back();
+                },
+              },
+            ],
+          );
         } : undefined}
         large={false}
       />

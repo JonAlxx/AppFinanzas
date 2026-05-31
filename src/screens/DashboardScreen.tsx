@@ -102,11 +102,11 @@ export function DashboardScreen() {
   const unread = notifications.filter(n => !n.read).length;
   const activeBudgets = useMemo(() => {
     return budgets.map(b => {
-      const cat = catById(b.categoryId);
+      const cat = catById(b.categoryId, state.customCategories);
       const spent = spentByCategory(transactions, b.categoryId, 30);
       return { ...b, cat, spent, pct: (spent / b.limit) * 100 };
     }).sort((a, b) => b.pct - a.pct).slice(0, 3);
-  }, [budgets, transactions]);
+  }, [budgets, transactions, state.customCategories]);
 
   const seriesMax = Math.max(...series.map(x => x.amount), 1);
   const seriesTotal = series.reduce((s, d) => s + d.amount, 0);
@@ -389,7 +389,7 @@ export function DashboardScreen() {
           <SectionTitle title="Próximos pagos" action="Ver todo" onAction={() => navigate('calendar')} />
           <Card padding={4} style={{ marginTop: 10 }}>
             {nextPayments.map((p, i) => {
-              const cat = p.rule.categoryId ? catById(p.rule.categoryId) : undefined;
+              const cat = p.rule.categoryId ? catById(p.rule.categoryId, state.customCategories) : undefined;
               const isIncome = p.rule.type === 'INCOME';
               const d = new Date(p.date);
               const today = new Date();
@@ -553,6 +553,7 @@ export function DashboardScreen() {
           ) : recentTxs.map((tx, i) => (
             <TransactionRow
               key={tx.id} tx={tx} accounts={state.accounts}
+              customCategories={state.customCategories}
               divider={i < recentTxs.length - 1}
               onPress={() => navigate({ screen: 'transaction-detail', id: tx.id })}
             />

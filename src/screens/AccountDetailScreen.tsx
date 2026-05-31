@@ -217,6 +217,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                   key={tx.id}
                   tx={tx}
                   accounts={state.accounts}
+                  customCategories={state.customCategories}
                   divider={i < Math.min(accTxs.length, 12) - 1}
                   onPress={() => navigate({ screen: 'transaction-detail', id: tx.id })}
                 />

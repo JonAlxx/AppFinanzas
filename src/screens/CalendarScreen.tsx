@@ -233,7 +233,7 @@ export function CalendarScreen() {
             <>
               <Card padding={4}>
                 {selectedRules.map((r, i) => {
-                  const cat = r.categoryId ? catById(r.categoryId) : undefined;
+                  const cat = r.categoryId ? catById(r.categoryId, state.customCategories) : undefined;
                   const brand = subscriptionBrandFor(r.subscriptionBrand);
                   const acc = state.accounts.find(a => a.id === r.accountId);
                   const isIncome = r.type === 'INCOME';

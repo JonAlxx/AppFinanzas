@@ -7,10 +7,12 @@ import { catById } from '../data/catalog';
 import { fmtMXN } from '../data/format';
 import { spentByCategory } from '../data/selectors';
 import { useAppState } from '../state/AppStateContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
 
 import { CategoryBadge } from '../components/Badges';
 import { Card } from '../components/Card';
+import { EmptyState } from '../components/EmptyState';
 import { ProgressBar } from '../components/ProgressBar';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SectionTitle } from '../components/SectionTitle';
@@ -18,12 +20,13 @@ import { SectionTitle } from '../components/SectionTitle';
 export function BudgetsScreen() {
   const { t } = useTheme();
   const { state } = useAppState();
+  const { navigate } = useNavigation();
 
   const data = useMemo(() => state.budgets.map(b => {
-    const cat = catById(b.categoryId);
+    const cat = catById(b.categoryId, state.customCategories);
     const spent = spentByCategory(state.transactions, b.categoryId, 30);
     return { ...b, cat, spent, pct: (spent / b.limit) * 100, remaining: b.limit - spent };
-  }), [state.budgets, state.transactions]);
+  }), [state.budgets, state.transactions, state.customCategories]);
 
   const totalLimit = data.reduce((s, b) => s + b.limit, 0);
   const totalSpent = data.reduce((s, b) => s + b.spent, 0);
@@ -92,47 +95,59 @@ export function BudgetsScreen() {
 
         <View style={{ marginTop: 18 }}>
           <SectionTitle title="Por categoría" />
-          <View style={{ gap: 10, marginTop: 12 }}>
-            {data.map(b => {
-              const over = b.pct >= 100;
-              const warn = b.pct >= 80;
-              const pctColor = over ? t.rose : warn ? t.orange : t.textMuted;
-              const barColor = over ? 'rose' : warn ? 'orange' : b.cat?.color;
-              return (
-                <Card key={b.id}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                    <CategoryBadge cat={b.cat} size={42} radius={13} />
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          {data.length === 0 ? (
+            <View style={{ marginTop: 12 }}>
+              <EmptyState
+                icon="bolt"
+                color="indigo"
+                title="Sin presupuestos aún"
+                message="Crea presupuestos por categoría para controlar tus gastos y recibir alertas."
+                action="Próximamente"
+              />
+            </View>
+          ) : (
+            <View style={{ gap: 10, marginTop: 12 }}>
+              {data.map(b => {
+                const over = b.pct >= 100;
+                const warn = b.pct >= 80;
+                const pctColor = over ? t.rose : warn ? t.orange : t.textMuted;
+                const barColor = over ? 'rose' : warn ? 'orange' : b.cat?.color;
+                return (
+                  <Card key={b.id}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                      <CategoryBadge cat={b.cat} size={42} radius={13} />
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.text,
+                          }}>{b.cat?.name}</Text>
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: pctColor,
+                            fontVariant: ['tabular-nums'],
+                          }}>{b.pct.toFixed(0)}%</Text>
+                        </View>
                         <Text style={{
-                          fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.text,
-                        }}>{b.cat?.name}</Text>
-                        <Text style={{
-                          fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: pctColor,
-                          fontVariant: ['tabular-nums'],
-                        }}>{b.pct.toFixed(0)}%</Text>
+                          fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
+                          marginTop: 2,
+                        }}>{fmtMXN(b.spent)} de {fmtMXN(b.limit)}</Text>
                       </View>
-                      <Text style={{
-                        fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
-                        marginTop: 2,
-                      }}>{fmtMXN(b.spent)} de {fmtMXN(b.limit)}</Text>
                     </View>
-                  </View>
-                  <ProgressBar pct={b.pct} color={barColor} height={8} />
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
-                    <Text style={{
-                      fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted,
-                    }}>{over ? '⚠ Te pasaste por' : 'Te quedan'}</Text>
-                    <Text style={{
-                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12,
-                      color: over ? t.rose : t.text,
-                      fontVariant: ['tabular-nums'],
-                    }}>{fmtMXN(Math.abs(b.remaining))}</Text>
-                  </View>
-                </Card>
-              );
-            })}
-          </View>
+                    <ProgressBar pct={b.pct} color={barColor} height={8} />
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted,
+                      }}>{over ? '⚠ Te pasaste por' : 'Te quedan'}</Text>
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12,
+                        color: over ? t.rose : t.text,
+                        fontVariant: ['tabular-nums'],
+                      }}>{fmtMXN(Math.abs(b.remaining))}</Text>
+                    </View>
+                  </Card>
+                );
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>

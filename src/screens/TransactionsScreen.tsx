@@ -38,7 +38,7 @@ export function TransactionsScreen() {
     if (search.trim()) {
       const q = search.toLowerCase();
       txs = txs.filter(tx => {
-        const cat = tx.categoryId ? catById(tx.categoryId) : null;
+        const cat = tx.categoryId ? catById(tx.categoryId, state.customCategories) : null;
         return (tx.note || '').toLowerCase().includes(q)
           || (cat?.name || '').toLowerCase().includes(q);
       });
@@ -122,6 +122,7 @@ export function TransactionsScreen() {
                   key={tx.id}
                   tx={tx}
                   accounts={state.accounts}
+                  customCategories={state.customCategories}
                   divider={j < day.txs.length - 1}
                   onPress={() => navigate({ screen: 'transaction-detail', id: tx.id })}
                 />

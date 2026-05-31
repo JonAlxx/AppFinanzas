@@ -122,12 +122,12 @@ export function SettingsScreen() {
 
   function handleReset() {
     Alert.alert(
-      'Cerrar sesión y resetear',
-      'Esto borra TODOS tus movimientos, cuentas, recurrentes y configuración. ¿Continuar?',
+      'Borrar todos los datos',
+      'Esto borra TODOS tus movimientos, cuentas, recurrentes y configuración. Esta acción no se puede deshacer. ¿Continuar?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Resetear', style: 'destructive',
+          text: 'Borrar todo', style: 'destructive',
           onPress: () => dispatch({ type: 'RESET' }),
         },
       ],
@@ -159,9 +159,8 @@ export function SettingsScreen() {
             <Text style={{
               fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
               marginTop: 2,
-            }}>Toca para personalizar</Text>
+            }}>Finanzas Personales</Text>
           </View>
-          <Icon name="edit" size={18} color={t.textMuted} />
         </Card>
 
         <Card style={{ marginTop: 14, padding: 4 }}>
@@ -217,10 +216,10 @@ export function SettingsScreen() {
             opacity: pressed ? 0.7 : 1,
           }]}
         >
-          <Icon name="logout" size={18} color={t.rose} />
+          <Icon name="trash" size={18} color={t.rose} />
           <Text style={{
             fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.rose,
-          }}>Cerrar sesión</Text>
+          }}>Borrar todos los datos</Text>
         </Pressable>
 
         <Text style={{

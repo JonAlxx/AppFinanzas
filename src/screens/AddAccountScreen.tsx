@@ -337,7 +337,14 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
           }}>SALDO INICIAL</Text>
           <TextInput
             value={balance}
-            onChangeText={(v) => setBalance(v.replace(/[^0-9.]/g, ''))}
+            onChangeText={(v) => {
+              const clean = v.replace(/[^0-9.]/g, '');
+              const parts = clean.split('.');
+              const normalized = parts.length > 2
+                ? parts[0] + '.' + parts.slice(1).join('')
+                : clean;
+              setBalance(normalized.slice(0, 14));
+            }}
             placeholder="0.00"
             placeholderTextColor={t.textMuted}
             keyboardType="decimal-pad"

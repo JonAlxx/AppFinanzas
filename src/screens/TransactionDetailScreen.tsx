@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { catById } from '../data/catalog';
 import { fmtDateLong, fmtMXN, fmtTime } from '../data/format';
@@ -55,7 +55,7 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
     );
   }
 
-  const cat = tx.categoryId ? catById(tx.categoryId) : undefined;
+  const cat = tx.categoryId ? catById(tx.categoryId, state.customCategories) : undefined;
   const acc = state.accounts.find(a => a.id === tx.accountId);
   const dest = tx.destinationAccountId ? state.accounts.find(a => a.id === tx.destinationAccountId) : undefined;
   const isIncome = tx.type === 'INCOME';
@@ -135,8 +135,20 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
           </Pressable>
           <Pressable
             onPress={() => {
-              dispatch({ type: 'DELETE_TX', id: tx.id });
-              navigate('transactions');
+              Alert.alert(
+                'Eliminar movimiento',
+                '¿Seguro que quieres eliminar este movimiento? Esta acción no se puede deshacer.',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Eliminar', style: 'destructive',
+                    onPress: () => {
+                      dispatch({ type: 'DELETE_TX', id: tx.id });
+                      back();
+                    },
+                  },
+                ],
+              );
             }}
             style={({ pressed }) => [{
               flex: 1, paddingVertical: 13, borderRadius: 14,

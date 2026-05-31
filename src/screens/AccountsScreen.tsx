@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { labelType } from '../data/catalog';
-import { fmtMXN } from '../data/format';
+import { fmtMXN, getCurrency } from '../data/format';
 import { computeAccountBalance, isCreditAccount, isLiquidAccount } from '../data/selectors';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -40,7 +40,7 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
   const branded = visibleBalances.filter(a => a.brand);
   const others = visibleBalances.filter(a => !a.brand);
   const openAccount = (id: string) => {
-    navigate(filter === 'all' ? { screen: 'account-detail', id } : { screen: 'add-account', id });
+    navigate({ screen: 'account-detail', id });
   };
 
   return (
@@ -90,7 +90,7 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
                 backgroundColor: 'rgba(255,255,255,0.18)',
               }}>
                 <Icon name="trending" size={11} color="#fff" />
-                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>{getCurrency()}</Text>
               </View>
             </View>
           </LinearGradient>

@@ -25,7 +25,7 @@ import { SecurityScreen } from '../screens/SecurityScreen';
 import { Placeholder } from '../screens/Placeholder';
 
 export function AppRouter() {
-  const { route, navigate } = useNavigation();
+  const { route, navigate, navigateTab } = useNavigation();
 
   const showBottomNav = SCREENS_WITH_BOTTOM_NAV.includes(route.screen);
   const currentTab: BottomTabId = (BOTTOM_TABS.includes(route.screen as any) ? route.screen : null) as BottomTabId;
@@ -111,7 +111,7 @@ export function AppRouter() {
       {showBottomNav ? (
         <BottomBar
           current={currentTab}
-          onChange={(id) => navigate(id)}
+          onChange={(id) => navigateTab(id)}
           onFab={() => navigate('add-transaction')}
         />
       ) : null}

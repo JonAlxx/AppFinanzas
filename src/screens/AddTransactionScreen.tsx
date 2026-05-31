@@ -79,7 +79,7 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
   const acc = state.accounts.find(a => a.id === accountId);
   const dest = state.accounts.find(a => a.id === destAccountId);
   const amtNum = parseFloat(amount) || 0;
-  const canSave = amtNum > 0 && (type === 'TRANSFER' ? destAccountId && destAccountId !== accountId : !!categoryId);
+  const canSave = amtNum > 0 && !!accountId && (type === 'TRANSFER' ? destAccountId && destAccountId !== accountId : !!categoryId);
 
   const typeColor = type === 'INCOME' ? t.green : type === 'EXPENSE' ? t.rose : t.indigo;
 
@@ -116,7 +116,7 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
       note: note || null,
     };
     dispatch({ type: editingId ? 'UPDATE_TX' : 'ADD_TX', tx });
-    navigate('dashboard');
+    back();
   }
 
   const display = formatAmountDisplay(amount);

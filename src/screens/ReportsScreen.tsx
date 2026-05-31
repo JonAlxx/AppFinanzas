@@ -33,8 +33,8 @@ export function ReportsScreen() {
   const [range, setRange] = useState(30);
 
   const cats = useMemo(
-    () => expenseByCategory(state.transactions, range),
-    [state.transactions, range]
+    () => expenseByCategory(state.transactions, range, state.customCategories),
+    [state.transactions, range, state.customCategories]
   );
   const totalExp = cats.reduce((s, c) => s + c.amount, 0);
   const months = useMemo(() => monthlySeries(state.transactions, 6), [state.transactions]);

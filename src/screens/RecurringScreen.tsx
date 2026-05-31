@@ -40,9 +40,9 @@ function fmtNextDate(ms: number | null): string {
 
 function RecurringRow({ rule }: { rule: Recurring }) {
   const { t } = useTheme();
-  const { dispatch } = useAppState();
+  const { state, dispatch } = useAppState();
   const { navigate } = useNavigation();
-  const cat = rule.categoryId ? catById(rule.categoryId) : undefined;
+  const cat = rule.categoryId ? catById(rule.categoryId, state.customCategories) : undefined;
   const brand = subscriptionBrandFor(rule.subscriptionBrand);
   const next = nextDueAfter(rule, Date.now());
   const isIncome = rule.type === 'INCOME';

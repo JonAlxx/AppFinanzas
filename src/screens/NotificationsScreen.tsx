@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { dayLabel, fmtTime } from '../data/format';
@@ -24,11 +24,6 @@ export function NotificationsScreen() {
   const { t } = useTheme();
   const { state, dispatch } = useAppState();
   const { back } = useNavigation();
-
-  useEffect(() => {
-    const timer = setTimeout(() => dispatch({ type: 'MARK_ALL_READ' }), 1500);
-    return () => clearTimeout(timer);
-  }, [dispatch]);
 
   return (
     <View style={{ flex: 1 }}>
