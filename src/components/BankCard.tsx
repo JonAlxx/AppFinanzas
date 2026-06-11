@@ -63,12 +63,14 @@ export function BankCard({ acc, balance, onPress, compact }: BankCardProps) {
             }}>{labelType(acc.type).toUpperCase()}</Text>
           </View>
           <View style={{ marginTop: 18 }}>
-            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: 'rgba(255,255,255,0.8)', letterSpacing: 0.4 }}>SALDO</Text>
+            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: 'rgba(255,255,255,0.8)', letterSpacing: 0.4 }}>
+              {isCC ? 'DISPONIBLE' : 'SALDO'}
+            </Text>
             <Text style={{
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 22, color: '#fff',
               letterSpacing: -0.6, marginTop: 2,
               fontVariant: ['tabular-nums'],
-            }}>{fmtMXN(balance)}</Text>
+            }}>{isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance))}</Text>
             <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: '#fff', opacity: 0.95, marginTop: 4 }}>{acc.name}</Text>
           </View>
         </LinearGradient>
@@ -89,13 +91,14 @@ export function BankCard({ acc, balance, onPress, compact }: BankCardProps) {
 
       <View style={{ padding: 18, paddingBottom: 16, flex: 1 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ height: 28, justifyContent: 'center' }}>
+          <View style={{ minHeight: 28, justifyContent: 'center' }}>
             {brand.logo ? (
               <Image source={brand.logo} style={{ height: 28, width: 110, resizeMode: 'contain' }} />
             ) : (
               <Text numberOfLines={1} style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 21,
                 color: brand.text, letterSpacing: -0.6,
+                includeFontPadding: false,
               }}>{brand.short}</Text>
             )}
           </View>
@@ -126,12 +129,12 @@ export function BankCard({ acc, balance, onPress, compact }: BankCardProps) {
             <Text style={{
               fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: 'rgba(255,255,255,0.78)',
               letterSpacing: 0.4,
-            }}>{isCC ? 'SALDO POR PAGAR' : 'SALDO'}</Text>
+            }}>{isCC ? 'DISPONIBLE' : 'SALDO'}</Text>
             <Text numberOfLines={1} style={{
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 22, color: brand.text,
               letterSpacing: -0.6, marginTop: 2,
               fontVariant: ['tabular-nums'],
-            }}>{isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)}</Text>
+            }}>{isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance))}</Text>
             <Text style={{
               fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: 'rgba(255,255,255,0.85)',
               letterSpacing: 0.4, marginTop: 4,

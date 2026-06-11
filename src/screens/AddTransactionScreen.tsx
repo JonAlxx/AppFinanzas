@@ -5,19 +5,21 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { allCategories, catById } from '../data/catalog';
-import { dayLabel } from '../data/format';
+import { dayLabel, fmtMXN } from '../data/format';
 import { TransactionType } from '../data/types';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
 import { colorFor, softFor } from '../theme/theme';
+import { computeAccountBalance } from '../data/selectors';
 
 import { AccountBadge, CategoryBadge } from '../components/Badges';
 import { AccountPickerSheet } from '../components/AccountPickerSheet';
 import { FormRow } from '../components/FormRow';
-import { Numpad, NumpadKey } from '../components/Numpad';
+import { Card } from '../components/Card';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Sheet } from '../components/Sheet';
+import { Icon } from '../icons/Icon';
 
 export interface AddTransactionScreenProps {
   initialType?: TransactionType;
@@ -63,6 +65,7 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
   const [categoryId, setCategoryId] = useState<string | null>(editingTx?.categoryId || null);
   const [accountId, setAccountId] = useState<string>(editingTx?.accountId || state.accounts[0]?.id);
   const [destAccountId, setDestAccountId] = useState<string>(editingTx?.destinationAccountId || state.accounts[1]?.id || '');
+  const [targetGoalId, setTargetGoalId] = useState<string | null>(editingTx?.destinationGoalId || null);
   const [note, setNote] = useState<string>(editingTx?.note || '');
   const [date] = useState<number>(editingTx?.date || Date.now());
   const [showAccountPicker, setShowAccountPicker] = useState(false);
@@ -70,6 +73,14 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
   const [showCatSheet, setShowCatSheet] = useState(false);
 
   const shake = useRef(new Animated.Value(0)).current;
+  const amountInputRef = useRef<any>(null);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      amountInputRef.current?.focus();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, []);
 
   const cats = useMemo(
     () => allCategories(state.customCategories).filter(c => c.type === (type === 'INCOME' ? 'INCOME' : 'EXPENSE')),
@@ -79,19 +90,11 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
   const acc = state.accounts.find(a => a.id === accountId);
   const dest = state.accounts.find(a => a.id === destAccountId);
   const amtNum = parseFloat(amount) || 0;
-  const canSave = amtNum > 0 && !!accountId && (type === 'TRANSFER' ? destAccountId && destAccountId !== accountId : !!categoryId);
+  const canSave = amtNum > 0 && !!accountId && (type === 'TRANSFER' ? destAccountId && (targetGoalId ? true : destAccountId !== accountId) : !!categoryId);
 
   const typeColor = type === 'INCOME' ? t.green : type === 'EXPENSE' ? t.rose : t.indigo;
 
-  function press(k: NumpadKey) {
-    if (k === 'back') {
-      setAmount(prev => prev.length <= 1 ? '0' : prev.slice(0, -1));
-    } else if (k === '.') {
-      if (!amount.includes('.')) setAmount(prev => prev + '.');
-    } else {
-      setAmount(prev => prev === '0' ? k : prev + k);
-    }
-  }
+  // Removed custom numpad press handler
 
   function triggerShake() {
     shake.setValue(0);
@@ -114,8 +117,10 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
       categoryId: type === 'TRANSFER' ? null : categoryId,
       destinationAccountId: type === 'TRANSFER' ? destAccountId : null,
       note: note || null,
+      destinationGoalId: type === 'TRANSFER' ? targetGoalId : null,
     };
     dispatch({ type: editingId ? 'UPDATE_TX' : 'ADD_TX', tx });
+
     back();
   }
 
@@ -131,88 +136,104 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
         large={false}
       />
 
-      {/* Type segment */}
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-        <View style={{
-          flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14,
-          backgroundColor: t.surface,
-          shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
-        }}>
-          {TYPE_OPTIONS.map(tt => {
-            const active = type === tt.id;
-            const c = colorFor(t, tt.color);
-            return (
-              <Pressable
-                key={tt.id}
-                onPress={() => { setType(tt.id); setCategoryId(null); }}
-                style={{
-                  flex: 1, paddingVertical: 10, paddingHorizontal: 8,
-                  borderRadius: 10,
-                  backgroundColor: active ? c : 'transparent',
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{
-                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13,
-                  color: active ? '#fff' : t.textMuted,
-                }}>{tt.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <TextInput
+        ref={amountInputRef}
+        value={amount === '0' ? '' : amount}
+        onChangeText={(v) => {
+          const clean = v.replace(/[^0-9.]/g, '');
+          const parts = clean.split('.');
+          if (parts.length > 2) return;
+          setAmount(clean || '0');
+        }}
+        keyboardType="decimal-pad"
+        style={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          opacity: 0,
+        }}
+      />
 
-      {/* Amount display */}
-      <Animated.View style={{
-        paddingHorizontal: 24, paddingTop: 20, paddingBottom: 8,
-        alignItems: 'center',
-        transform: [{ translateX: shake }],
-      }}>
-        <Text style={{
-          fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
-          letterSpacing: 0.4,
-        }}>MONTO</Text>
-        <View style={{
-          flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4,
-          marginTop: 6,
-        }}>
+      {/* Amount display (Touch to edit) */}
+      <Pressable
+        onPress={() => amountInputRef.current?.focus()}
+        style={{
+          paddingHorizontal: 24, paddingTop: 10, paddingBottom: 6,
+          alignItems: 'center',
+        }}
+      >
+        <Animated.View style={{ alignItems: 'center', transform: [{ translateX: shake }] }}>
           <Text style={{
-            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: t.textMuted,
-          }}>$</Text>
-          <Text style={{
-            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 48, color: typeColor,
-            letterSpacing: -2,
-            fontVariant: ['tabular-nums'],
-          }}>{display.whole}</Text>
-          {display.hasDecimal ? (
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.4,
+          }}>MONTO</Text>
+          <View style={{
+            flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4,
+            marginTop: 6,
+          }}>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: t.textMuted,
+            }}>$</Text>
             <Text style={{
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 48, color: typeColor,
               letterSpacing: -2,
               fontVariant: ['tabular-nums'],
-            }}>.{display.cents}</Text>
-          ) : (
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: t.textSubtle,
-            }}>.00</Text>
-          )}
-        </View>
-      </Animated.View>
+            }}>{display.whole}</Text>
+            {display.hasDecimal ? (
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 48, color: typeColor,
+                letterSpacing: -2,
+                fontVariant: ['tabular-nums'],
+              }}>.{display.cents}</Text>
+            ) : (
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: t.textSubtle,
+              }}>.00</Text>
+            )}
+          </View>
+        </Animated.View>
+      </Pressable>
 
-      {/* Form panel */}
-      <View style={{
-        flex: 1, minHeight: 0,
-        backgroundColor: t.surface,
-        borderTopLeftRadius: 28, borderTopRightRadius: 28,
-        paddingHorizontal: 16, paddingTop: 18,
-        shadowColor: '#0F172A', shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.04, shadowRadius: 8, elevation: 4,
-      }}>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 16 }}
-          keyboardShouldPersistTaps="handled"
-        >
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Type segment */}
+        <View style={{ paddingBottom: 12, marginTop: 4 }}>
+          <View style={{
+            flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14,
+            backgroundColor: t.surface,
+            shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
+          }}>
+            {TYPE_OPTIONS.map(tt => {
+              const active = type === tt.id;
+              const c = colorFor(t, tt.color);
+              return (
+                <Pressable
+                  key={tt.id}
+                  onPress={() => { setType(tt.id); setCategoryId(null); }}
+                  style={{
+                    flex: 1, paddingVertical: 10, paddingHorizontal: 8,
+                    borderRadius: 10,
+                    backgroundColor: active ? c : 'transparent',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13,
+                    color: active ? '#fff' : t.textMuted,
+                  }}>{tt.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <Card padding={16}>
+
           {type !== 'TRANSFER' ? (
             <FormRow icon="tag" label="Categoría" onPress={() => setShowCatSheet(true)}>
               {cat ? (
@@ -245,12 +266,33 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
 
           {type === 'TRANSFER' ? (
             <FormRow icon="arrow-up-right" label="Hacia" onPress={() => setShowDestPicker(true)}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <AccountBadge acc={dest} size={28} radius={9} />
-                <Text style={{
-                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
-                }}>{dest?.name}</Text>
-              </View>
+              {targetGoalId && state.goals.find(g => g.id === targetGoalId) ? (() => {
+                const g = state.goals.find(x => x.id === targetGoalId)!;
+                const gAcc = state.accounts.find(a => a.id === g.accountId);
+                return (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{
+                      width: 28, height: 28, borderRadius: 9,
+                      backgroundColor: softFor(t, g.color),
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Icon name={g.icon} size={15} color={colorFor(t, g.color)} />
+                    </View>
+                    <Text numberOfLines={1} style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                    }}>
+                      Meta: {g.name} <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', color: t.textMuted }}>({gAcc?.name})</Text>
+                    </Text>
+                  </View>
+                );
+              })() : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <AccountBadge acc={dest} size={28} radius={9} />
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                  }}>{dest?.name}</Text>
+                </View>
+              )}
             </FormRow>
           ) : null}
 
@@ -261,22 +303,26 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
             }}>{dayLabel(date)}</Text>
           </FormRow>
 
-          <FormRow icon="note" label="Nota" stack>
-            <TextInput
-              value={note}
-              onChangeText={setNote}
-              placeholder="Agrega un detalle..."
-              placeholderTextColor={t.textMuted}
-              style={{
-                paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
-                borderWidth: 1, borderColor: t.border,
-                backgroundColor: t.bg, color: t.text,
-                fontFamily: 'PlusJakartaSans_500Medium', fontSize: 14,
-              }}
-            />
-          </FormRow>
+          {/* Nota (Opcional) */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+            marginBottom: 4, marginTop: 14,
+          }}>NOTA (OPCIONAL)</Text>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="Agrega un detalle..."
+            placeholderTextColor={t.textMuted}
+            style={{
+              paddingVertical: 10,
+              borderBottomWidth: 1, borderBottomColor: t.border,
+              color: t.text, fontSize: 14,
+              fontFamily: 'PlusJakartaSans_500Medium',
+              marginBottom: 20,
+            }}
+          />
 
-          <View style={{ marginTop: 18 }}>
+          <View style={{ marginTop: 10 }}>
             <Pressable
               onPress={save}
               disabled={!canSave}
@@ -313,40 +359,39 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
               )}
             </Pressable>
           </View>
-        </ScrollView>
-      </View>
-
-      {/* Numpad pinned at bottom */}
-      <Numpad onPress={press} />
+        </Card>
+      </ScrollView>
 
       {/* Sheets */}
-      <Sheet open={showCatSheet} onClose={() => setShowCatSheet(false)} height="70%">
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 }}>
+      <Sheet open={showCatSheet} onClose={() => setShowCatSheet(false)} height="80%">
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 }}>
           <Text style={{
             fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
             letterSpacing: -0.3, marginBottom: 14,
           }}>Elige una categoría</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {cats.map(c => (
-              <View key={c.id} style={{ width: '25%', padding: 6 }}>
-                <Pressable
-                  onPress={() => { setCategoryId(c.id); setShowCatSheet(false); }}
-                  style={({ pressed }) => [{
-                    paddingVertical: 10, paddingHorizontal: 4, borderRadius: 14,
-                    alignItems: 'center', gap: 6,
-                    backgroundColor: categoryId === c.id ? softFor(t, c.color) : 'transparent',
-                    opacity: pressed ? 0.7 : 1,
-                  }]}
-                >
-                  <CategoryBadge cat={c} size={44} radius={14} />
-                  <Text numberOfLines={2} style={{
-                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.text,
-                    textAlign: 'center', lineHeight: 13,
-                  }}>{c.name}</Text>
-                </Pressable>
-              </View>
-            ))}
-          </View>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingBottom: 20 }}>
+              {cats.map(c => (
+                <View key={c.id} style={{ width: '25%', padding: 6 }}>
+                  <Pressable
+                    onPress={() => { setCategoryId(c.id); setShowCatSheet(false); }}
+                    style={({ pressed }) => [{
+                      paddingVertical: 10, paddingHorizontal: 4, borderRadius: 14,
+                      alignItems: 'center', gap: 6,
+                      backgroundColor: categoryId === c.id ? softFor(t, c.color) : 'transparent',
+                      opacity: pressed ? 0.7 : 1,
+                    }]}
+                  >
+                    <CategoryBadge cat={c} size={44} radius={14} />
+                    <Text numberOfLines={2} style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.text,
+                      textAlign: 'center', lineHeight: 13,
+                    }}>{c.name}</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
         </View>
       </Sheet>
 
@@ -359,15 +404,121 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
         onSelect={(id) => { setAccountId(id); setShowAccountPicker(false); }}
         title="Elige cuenta"
       />
-      <AccountPickerSheet
-        open={showDestPicker}
-        onClose={() => setShowDestPicker(false)}
-        accounts={state.accounts.filter(a => a.id !== accountId)}
-        transactions={state.transactions}
-        selected={destAccountId}
-        onSelect={(id) => { setDestAccountId(id); setShowDestPicker(false); }}
-        title="Hacia cuenta"
-      />
+      <Sheet open={showDestPicker} onClose={() => setShowDestPicker(false)} height="75%">
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 30 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 14,
+          }}>¿Hacia dónde transfieres?</Text>
+
+          {/* Section: Accounts */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+            letterSpacing: 0.2, marginBottom: 8, marginTop: 4,
+          }}>CUENTAS</Text>
+          
+          {state.accounts.filter(a => a.id !== accountId).map(a => {
+            const bal = computeAccountBalance(a, state.transactions);
+            const isSelected = !targetGoalId && destAccountId === a.id;
+            return (
+              <Pressable
+                key={a.id}
+                onPress={() => {
+                  setDestAccountId(a.id);
+                  setTargetGoalId(null);
+                  setShowDestPicker(false);
+                }}
+                style={({ pressed }) => [{
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
+                  backgroundColor: isSelected ? softFor(t, 'indigo') : 'transparent',
+                  marginBottom: 6,
+                  opacity: pressed ? 0.7 : 1,
+                }]}
+              >
+                <AccountBadge acc={a} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                  }}>{a.name}</Text>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
+                    marginTop: 2,
+                  }}>{fmtMXN(bal)}</Text>
+                </View>
+                {isSelected ? (
+                  <View style={{
+                    width: 22, height: 22, borderRadius: 11, backgroundColor: t.indigo,
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon name="check" size={14} color="#fff" strokeWidth={3} />
+                  </View>
+                ) : null}
+              </Pressable>
+            );
+          })}
+
+          {/* Section: Savings Goals */}
+          {state.goals.length > 0 ? (
+            <>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                letterSpacing: 0.2, marginBottom: 8, marginTop: 16,
+              }}>METAS DE AHORRO</Text>
+              
+              {state.goals.map(g => {
+                const isSelected = targetGoalId === g.id;
+                const acc = state.accounts.find(a => a.id === g.accountId);
+                const gColor = colorFor(t, g.color);
+                const gSoft = softFor(t, g.color);
+                return (
+                  <Pressable
+                    key={g.id}
+                    onPress={() => {
+                      setTargetGoalId(g.id);
+                      setDestAccountId(g.accountId);
+                      setShowDestPicker(false);
+                    }}
+                    style={({ pressed }) => [{
+                      flexDirection: 'row', alignItems: 'center', gap: 12,
+                      paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
+                      backgroundColor: isSelected ? softFor(t, 'indigo') : 'transparent',
+                      marginBottom: 6,
+                      opacity: pressed ? 0.7 : 1,
+                    }]}
+                  >
+                    <View style={{
+                      width: 38, height: 38, borderRadius: 11, backgroundColor: gSoft,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Icon name={g.icon} size={20} color={gColor} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                      }}>{g.name}</Text>
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
+                        marginTop: 2,
+                      }}>
+                        Ahorro en: {acc?.name || 'Cuenta'} · Meta: {fmtMXN(g.target)}
+                      </Text>
+                    </View>
+                    {isSelected ? (
+                      <View style={{
+                        width: 22, height: 22, borderRadius: 11, backgroundColor: t.indigo,
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icon name="check" size={14} color="#fff" strokeWidth={3} />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </>
+          ) : null}
+        </ScrollView>
+      </Sheet>
     </View>
   );
 }

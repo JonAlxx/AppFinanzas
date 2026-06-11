@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { Account, Category, Transaction } from './types';
+import { Account, AppState, Category, Transaction } from './types';
 import { catById } from './catalog';
 
 function csvEscape(value: string | number | null | undefined): string {
@@ -53,7 +53,12 @@ export async function exportTransactionsCSV(
     const stamp = new Date().toISOString().slice(0, 10);
     const filename = `finanzas-movimientos-${stamp}.csv`;
     const docDir = (FileSystem as any).documentDirectory as string | null;
-    if (!docDir) return { ok: false, error: 'No se pudo acceder al almacenamiento.' };
+    if (!docDir) {
+      return { 
+        ok: false, 
+        error: 'No se pudo acceder al almacenamiento. Si estás usando un APK de desarrollo, necesitas recompilar la app (npx expo run:android) para incluir los nuevos módulos nativos.' 
+      };
+    }
     const uri = docDir + filename;
     await (FileSystem as any).writeAsStringAsync(uri, csv, { encoding: 'utf8' });
     const available = await Sharing.isAvailableAsync();
@@ -63,5 +68,31 @@ export async function exportTransactionsCSV(
     return { ok: true, uri };
   } catch (e: any) {
     return { ok: false, error: e?.message || 'Error desconocido al exportar' };
+  }
+}
+
+export async function exportAppStateJSON(
+  state: AppState,
+): Promise<{ ok: true; uri: string } | { ok: false; error: string }> {
+  try {
+    const json = JSON.stringify(state, null, 2);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const filename = `finanzas-respaldo-${stamp}.json`;
+    const docDir = (FileSystem as any).documentDirectory as string | null;
+    if (!docDir) {
+      return { 
+        ok: false, 
+        error: 'No se pudo acceder al almacenamiento. Si estás usando un APK de desarrollo, necesitas recompilar la app (npx expo run:android) para incluir los nuevos módulos nativos.' 
+      };
+    }
+    const uri = docDir + filename;
+    await (FileSystem as any).writeAsStringAsync(uri, json, { encoding: 'utf8' });
+    const available = await Sharing.isAvailableAsync();
+    if (available) {
+      await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Exportar respaldo completo' });
+    }
+    return { ok: true, uri };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || 'Error desconocido al exportar respaldo' };
   }
 }

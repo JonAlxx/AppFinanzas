@@ -14,7 +14,7 @@ import { colorFor, softFor } from '../theme/theme';
 import { AccountBadge, CategoryBadge } from '../components/Badges';
 import { AccountPickerSheet } from '../components/AccountPickerSheet';
 import { FormRow } from '../components/FormRow';
-import { Numpad, NumpadKey } from '../components/Numpad';
+import { Card } from '../components/Card';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Sheet } from '../components/Sheet';
 import { SubscriptionBadge } from '../components/SubscriptionBadge';
@@ -83,6 +83,14 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
   const [showDayMonthSheet, setShowDayMonthSheet] = useState(false);
 
   const shake = useRef(new Animated.Value(0)).current;
+  const amountInputRef = useRef<any>(null);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      amountInputRef.current?.focus();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, []);
 
   const txType: 'INCOME' | 'EXPENSE' = kind === 'INCOME' ? 'INCOME' : 'EXPENSE';
   const cats = useMemo(
@@ -97,11 +105,7 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
 
   const accentColor = kind === 'INCOME' ? t.green : kind === 'SUBSCRIPTION' ? t.violet : t.rose;
 
-  function press(k: NumpadKey) {
-    if (k === 'back') setAmount(prev => prev.length <= 1 ? '0' : prev.slice(0, -1));
-    else if (k === '.') { if (!amount.includes('.')) setAmount(prev => prev + '.'); }
-    else setAmount(prev => prev === '0' ? k : prev + k);
-  }
+  // Removed custom numpad press handler
 
   function triggerShake() {
     shake.setValue(0);
@@ -178,92 +182,111 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
         large={false}
       />
 
-      {/* Kind segment */}
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-        <View style={{
-          flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14,
-          backgroundColor: t.surface,
-          shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
-        }}>
-          {KIND_OPTIONS.map(k => {
-            const active = kind === k.id;
-            const c = colorFor(t, k.color);
-            return (
-              <Pressable
-                key={k.id}
-                onPress={() => {
-                  setKind(k.id);
-                  setCategoryId(null);
-                  if (k.id !== 'SUBSCRIPTION') setSubBrand(null);
-                }}
-                style={{
-                  flex: 1, paddingVertical: 10, paddingHorizontal: 4,
-                  borderRadius: 10,
-                  backgroundColor: active ? c : 'transparent',
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{
-                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
-                  color: active ? '#fff' : t.textMuted,
-                }}>{k.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <TextInput
+        ref={amountInputRef}
+        value={amount === '0' ? '' : amount}
+        onChangeText={(v) => {
+          const clean = v.replace(/[^0-9.]/g, '');
+          const parts = clean.split('.');
+          if (parts.length > 2) return;
+          setAmount(clean || '0');
+        }}
+        keyboardType="decimal-pad"
+        style={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          opacity: 0,
+        }}
+      />
 
-      {/* Amount */}
-      <Animated.View style={{
-        paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8,
-        alignItems: 'center',
-        transform: [{ translateX: shake }],
-      }}>
-        <Text style={{
-          fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
-          letterSpacing: 0.4,
-        }}>MONTO</Text>
-        <View style={{
-          flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4,
-          marginTop: 6,
-        }}>
+      {/* Amount display (Touch to edit) */}
+      <Pressable
+        onPress={() => amountInputRef.current?.focus()}
+        style={{
+          paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8,
+          alignItems: 'center',
+        }}
+      >
+        <Animated.View style={{ alignItems: 'center', transform: [{ translateX: shake }] }}>
           <Text style={{
-            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: t.textMuted,
-          }}>$</Text>
-          <Text style={{
-            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 42, color: accentColor,
-            letterSpacing: -2,
-            fontVariant: ['tabular-nums'],
-          }}>{display.whole}</Text>
-          {display.hasDecimal ? (
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.4,
+          }}>MONTO</Text>
+          <View style={{
+            flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4,
+            marginTop: 6,
+          }}>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: t.textMuted,
+            }}>$</Text>
             <Text style={{
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 42, color: accentColor,
               letterSpacing: -2,
               fontVariant: ['tabular-nums'],
-            }}>.{display.cents}</Text>
-          ) : (
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: t.textSubtle,
-            }}>.00</Text>
-          )}
-        </View>
-      </Animated.View>
+            }}>{display.whole}</Text>
+            {display.hasDecimal ? (
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 42, color: accentColor,
+                letterSpacing: -2,
+                fontVariant: ['tabular-nums'],
+              }}>.{display.cents}</Text>
+            ) : (
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: t.textSubtle,
+              }}>.00</Text>
+            )}
+          </View>
+        </Animated.View>
+      </Pressable>
 
-      <View style={{
-        flex: 1, minHeight: 0,
-        backgroundColor: t.surface,
-        borderTopLeftRadius: 28, borderTopRightRadius: 28,
-        paddingHorizontal: 16, paddingTop: 14,
-      }}>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 16 }}
-          keyboardShouldPersistTaps="handled"
-        >
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Kind segment */}
+        <View style={{ paddingBottom: 12, marginTop: 4 }}>
+          <View style={{
+            flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14,
+            backgroundColor: t.surface,
+            shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
+          }}>
+            {KIND_OPTIONS.map(k => {
+              const active = kind === k.id;
+              const c = colorFor(t, k.color);
+              return (
+                <Pressable
+                  key={k.id}
+                  onPress={() => {
+                    setKind(k.id);
+                    setCategoryId(null);
+                    if (k.id !== 'SUBSCRIPTION') setSubBrand(null);
+                  }}
+                  style={{
+                    flex: 1, paddingVertical: 10, paddingHorizontal: 4,
+                    borderRadius: 10,
+                    backgroundColor: active ? c : 'transparent',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                    color: active ? '#fff' : t.textMuted,
+                  }}>{k.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <Card padding={16}>
+
           {/* Subscription brand picker */}
           {isSubscription ? (
-            <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border }}>
+            <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border, marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                 <Icon name="rotate" size={18} color={t.textMuted} />
                 <Text style={{
@@ -418,22 +441,26 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
             </View>
           )}
 
-          <FormRow icon="note" label="Nota" stack>
-            <TextInput
-              value={note}
-              onChangeText={setNote}
-              placeholder="Ej. Renta departamento"
-              placeholderTextColor={t.textMuted}
-              style={{
-                paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
-                borderWidth: 1, borderColor: t.border,
-                backgroundColor: t.bg, color: t.text,
-                fontFamily: 'PlusJakartaSans_500Medium', fontSize: 14,
-              }}
-            />
-          </FormRow>
+          {/* Nota (Opcional) */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+            marginBottom: 4, marginTop: 14,
+          }}>NOTA (OPCIONAL)</Text>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="Ej. Renta departamento"
+            placeholderTextColor={t.textMuted}
+            style={{
+              paddingVertical: 10,
+              borderBottomWidth: 1, borderBottomColor: t.border,
+              color: t.text, fontSize: 14,
+              fontFamily: 'PlusJakartaSans_500Medium',
+              marginBottom: 20,
+            }}
+          />
 
-          <View style={{ marginTop: 18 }}>
+          <View style={{ marginTop: 10 }}>
             <Pressable
               onPress={save}
               disabled={!canSave}
@@ -468,38 +495,38 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
               )}
             </Pressable>
           </View>
-        </ScrollView>
-      </View>
+        </Card>
+      </ScrollView>
 
-      <Numpad onPress={press} />
-
-      <Sheet open={showCatSheet} onClose={() => setShowCatSheet(false)} height="70%">
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 }}>
+      <Sheet open={showCatSheet} onClose={() => setShowCatSheet(false)} height="80%">
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 }}>
           <Text style={{
             fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
             letterSpacing: -0.3, marginBottom: 14,
           }}>Elige una categoría</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {cats.map(c => (
-              <View key={c.id} style={{ width: '25%', padding: 6 }}>
-                <Pressable
-                  onPress={() => { setCategoryId(c.id); setShowCatSheet(false); }}
-                  style={({ pressed }) => [{
-                    paddingVertical: 10, paddingHorizontal: 4, borderRadius: 14,
-                    alignItems: 'center', gap: 6,
-                    backgroundColor: categoryId === c.id ? softFor(t, c.color) : 'transparent',
-                    opacity: pressed ? 0.7 : 1,
-                  }]}
-                >
-                  <CategoryBadge cat={c} size={44} radius={14} />
-                  <Text numberOfLines={2} style={{
-                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.text,
-                    textAlign: 'center', lineHeight: 13,
-                  }}>{c.name}</Text>
-                </Pressable>
-              </View>
-            ))}
-          </View>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingBottom: 20 }}>
+              {cats.map(c => (
+                <View key={c.id} style={{ width: '25%', padding: 6 }}>
+                  <Pressable
+                    onPress={() => { setCategoryId(c.id); setShowCatSheet(false); }}
+                    style={({ pressed }) => [{
+                      paddingVertical: 10, paddingHorizontal: 4, borderRadius: 14,
+                      alignItems: 'center', gap: 6,
+                      backgroundColor: categoryId === c.id ? softFor(t, c.color) : 'transparent',
+                      opacity: pressed ? 0.7 : 1,
+                    }]}
+                  >
+                    <CategoryBadge cat={c} size={44} radius={14} />
+                    <Text numberOfLines={2} style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.text,
+                      textAlign: 'center', lineHeight: 13,
+                    }}>{c.name}</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
         </View>
       </Sheet>
 

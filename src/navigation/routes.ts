@@ -6,11 +6,12 @@ export type Route =
   | { screen: 'transactions' }
   | { screen: 'add-transaction'; type?: TransactionType; id?: string }
   | { screen: 'transaction-detail'; id: string }
-  | { screen: 'accounts'; filter?: 'liquid' | 'credit' }
+  | { screen: 'accounts'; filter?: 'debit' | 'cash' | 'credit' | 'liquid' }
   | { screen: 'add-account'; id?: string }
   | { screen: 'account-detail'; id: string }
   | { screen: 'budgets' }
   | { screen: 'goals' }
+  | { screen: 'add-goal'; id?: string }
   | { screen: 'reports' }
   | { screen: 'notifications' }
   | { screen: 'settings' }

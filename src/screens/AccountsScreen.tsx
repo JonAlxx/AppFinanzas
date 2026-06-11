@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { labelType } from '../data/catalog';
 import { fmtMXN, getCurrency } from '../data/format';
-import { computeAccountBalance, isCreditAccount, isLiquidAccount } from '../data/selectors';
+import { computeAccountBalance, isCreditAccount, isDebitAccount, isCashAccount } from '../data/selectors';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -17,28 +17,49 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { SectionTitle } from '../components/SectionTitle';
 import { Icon } from '../icons/Icon';
 
-type AccountFilter = 'all' | 'liquid' | 'credit';
+type AccountFilter = 'all' | 'debit' | 'cash' | 'credit' | 'liquid';
 
 export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: AccountFilter }) {
   const { t } = useTheme();
   const { state } = useAppState();
   const { navigate } = useNavigation();
-  const [filter, setFilter] = useState<AccountFilter>(initialFilter);
+  const [filter, setFilter] = useState<AccountFilter>(
+    initialFilter === 'liquid' ? 'debit' : initialFilter
+  );
 
   const balances = useMemo(
     () => state.accounts.map(a => ({ ...a, balance: computeAccountBalance(a, state.transactions) })),
     [state.accounts, state.transactions]
   );
   const total = balances.reduce((s, a) => s + a.balance, 0);
-  const liquidTotal = balances.filter(isLiquidAccount).reduce((s, a) => s + a.balance, 0);
+  const debitTotal = balances.filter(isDebitAccount).reduce((s, a) => s + a.balance, 0);
+  const cashTotal = balances.filter(isCashAccount).reduce((s, a) => s + a.balance, 0);
   const creditTotal = balances.filter(isCreditAccount).reduce((s, a) => s + a.balance, 0);
+  
+  const creditStats = useMemo(() => {
+    const creditAccts = balances.filter(isCreditAccount);
+    let totalLimit = 0;
+    let totalUsed = 0;
+    for (const acc of creditAccts) {
+      totalLimit += acc.limit || 0;
+      totalUsed += Math.abs(acc.balance);
+    }
+    return {
+      limit: totalLimit,
+      used: totalUsed,
+      available: Math.max(0, totalLimit - totalUsed),
+    };
+  }, [balances]);
+
   const visibleBalances = balances.filter(a => {
-    if (filter === 'liquid') return isLiquidAccount(a);
+    if (filter === 'debit') return isDebitAccount(a);
+    if (filter === 'cash') return isCashAccount(a);
     if (filter === 'credit') return isCreditAccount(a);
+    if (filter === 'liquid') return isDebitAccount(a) || isCashAccount(a);
     return true;
   });
-  const branded = visibleBalances.filter(a => a.brand);
-  const others = visibleBalances.filter(a => !a.brand);
+  const branded = visibleBalances.filter(a => a.brand || a.type === 'DEBIT_CARD' || a.type === 'CREDIT_CARD');
+  const others = visibleBalances.filter(a => !a.brand && a.type !== 'DEBIT_CARD' && a.type !== 'CREDIT_CARD');
   const openAccount = (id: string) => {
     navigate({ screen: 'account-detail', id });
   };
@@ -98,12 +119,13 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
 
         {/* Filtros */}
         <View style={{
-          flexDirection: 'row', gap: 8, marginTop: 12,
+          flexDirection: 'row', gap: 6, marginTop: 12,
           backgroundColor: t.surface, borderRadius: 16, padding: 4,
         }}>
           {[
             { id: 'all', label: 'Todo' },
-            { id: 'liquid', label: 'Débito' },
+            { id: 'debit', label: 'Débito' },
+            { id: 'cash', label: 'Efectivo' },
             { id: 'credit', label: 'Crédito' },
           ].map(item => {
             const active = filter === item.id;
@@ -118,7 +140,7 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
                 }}
               >
                 <Text style={{
-                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12,
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 11,
                   color: active ? '#fff' : t.textMuted,
                 }}>{item.label}</Text>
               </Pressable>
@@ -126,48 +148,71 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
           })}
         </View>
 
-        {/* Subtotales líquido vs crédito */}
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-          <Card padding={14} style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {/* Subtotales */}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+          <Card padding={10} style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <View style={{
-                width: 22, height: 22, borderRadius: 7,
+                width: 20, height: 20, borderRadius: 6,
+                backgroundColor: t.indigoSoft,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Icon name="wallet" size={11} color={t.indigo} strokeWidth={2.4} />
+              </View>
+              <Text numberOfLines={1} style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted,
+                letterSpacing: 0.1,
+              }}>DÉBITO</Text>
+            </View>
+            <Text numberOfLines={1} style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text,
+              marginTop: 6, letterSpacing: -0.4,
+              fontVariant: ['tabular-nums'],
+            }}>{fmtMXN(debitTotal)}</Text>
+          </Card>
+          
+          <Card padding={10} style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{
+                width: 20, height: 20, borderRadius: 6,
                 backgroundColor: t.greenSoft,
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                <Icon name="wallet" size={12} color={t.green} strokeWidth={2.4} />
+                <Icon name="cash" size={11} color={t.green} strokeWidth={2.4} />
               </View>
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
-                letterSpacing: 0.3,
-              }}>DÉBITO Y EFECTIVO</Text>
+              <Text numberOfLines={1} style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted,
+                letterSpacing: 0.1,
+              }}>EFECTIVO</Text>
             </View>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            <Text numberOfLines={1} style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text,
               marginTop: 6, letterSpacing: -0.4,
               fontVariant: ['tabular-nums'],
-            }}>{fmtMXN(liquidTotal)}</Text>
+            }}>{fmtMXN(cashTotal)}</Text>
           </Card>
-          <Card padding={14} style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+
+          <Card padding={10} style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <View style={{
-                width: 22, height: 22, borderRadius: 7,
+                width: 20, height: 20, borderRadius: 6,
                 backgroundColor: t.roseSoft,
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                <Icon name="card" size={12} color={t.rose} strokeWidth={2.4} />
+                <Icon name="card" size={11} color={t.rose} strokeWidth={2.4} />
               </View>
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
-                letterSpacing: 0.3,
-              }}>TARJETAS DE CRÉDITO</Text>
+              <Text numberOfLines={1} style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted,
+                letterSpacing: 0.1,
+              }}>CRÉDITO</Text>
             </View>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18,
-              color: creditTotal < 0 ? t.rose : t.text,
+            <Text numberOfLines={1} style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold',
+              fontSize: 13,
+              color: t.text,
               marginTop: 6, letterSpacing: -0.4,
               fontVariant: ['tabular-nums'],
-            }}>{fmtMXN(creditTotal)}</Text>
+            }}>{fmtMXN(creditStats.available)}</Text>
           </Card>
         </View>
 

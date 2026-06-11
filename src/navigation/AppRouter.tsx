@@ -11,6 +11,7 @@ import { AddTransactionScreen } from '../screens/AddTransactionScreen';
 import { AddAccountScreen } from '../screens/AddAccountScreen';
 import { BudgetsScreen } from '../screens/BudgetsScreen';
 import { GoalsScreen } from '../screens/GoalsScreen';
+import { AddGoalScreen } from '../screens/AddGoalScreen';
 import { ReportsScreen } from '../screens/ReportsScreen';
 import { TransactionDetailScreen } from '../screens/TransactionDetailScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
@@ -64,6 +65,11 @@ export function AppRouter() {
     case 'goals':
       screen = <GoalsScreen />;
       break;
+    case 'add-goal': {
+      const r = route as Extract<typeof route, { screen: 'add-goal' }>;
+      screen = <AddGoalScreen editingId={r.id} />;
+      break;
+    }
     case 'reports':
       screen = <ReportsScreen />;
       break;

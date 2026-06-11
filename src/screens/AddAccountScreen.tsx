@@ -42,7 +42,16 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
 
   const [name, setName] = useState(editing?.name || '');
   const [type, setType] = useState<AccountType>(editing?.type || 'DEBIT_CARD');
-  const [balance, setBalance] = useState(editing ? (editing.initial / 100).toFixed(2) : '');
+  const [balance, setBalance] = useState(() => {
+    if (!editing) return '';
+    const val = editing.initial / 100;
+    if (editing.type === 'CREDIT_CARD' && editing.limit) {
+      const available = (editing.limit - Math.abs(editing.initial)) / 100;
+      return available.toFixed(2);
+    }
+    return val.toFixed(2);
+  });
+  const [limit, setLimit] = useState(editing?.limit ? (editing.limit / 100).toFixed(2) : '');
   const [color, setColor] = useState(editing?.color || 'indigo');
   const [icon, setIcon] = useState<IconName>((editing?.icon as IconName) || 'card');
   const [brand, setBrand] = useState<string | null>(editing?.brand || null);
@@ -55,11 +64,23 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
 
   function save() {
     if (!name) return;
+    const isCC = type === 'CREDIT_CARD';
+    
+    let finalInitial = balanceNum;
+    let limitCents: number | undefined;
+    
+    if (isCC) {
+      const limitNum = parseFloat(limit) || 0;
+      const debt = Math.max(0, limitNum - balanceNum);
+      finalInitial = -Math.abs(debt);
+      limitCents = Math.round(limitNum * 100);
+    }
+    
     const newAcc: Account = {
       id: editing?.id || ('acc-' + Date.now()),
       name,
       type,
-      initial: Math.round(balanceNum * 100),
+      initial: Math.round(finalInitial * 100),
       color,
       icon,
     };
@@ -68,19 +89,24 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
       if (isCardLike && last4) newAcc.last4 = last4;
       if (isCardLike && network) newAcc.network = network;
     }
-    // preserve limit if editing
-    if (editing?.limit) newAcc.limit = editing.limit;
+    
+    if (isCC && limitCents !== undefined) {
+      newAcc.limit = limitCents;
+    }
 
     dispatch({ type: editing ? 'UPDATE_ACC' : 'ADD_ACC', acc: newAcc });
     back();
   }
 
   // Preview account object for BankCard rendering
+  const limitNum = parseFloat(limit) || 0;
+  const previewInitial = type === 'CREDIT_CARD' ? -Math.max(0, limitNum - balanceNum) : balanceNum;
+
   const previewAcc: Account = {
     id: 'preview',
     name: name || 'Nombre de cuenta',
     type,
-    initial: Math.round(balanceNum * 100),
+    initial: Math.round(previewInitial * 100),
     color,
     icon,
     ...(brand && {
@@ -89,6 +115,9 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
       ...(isCardLike && network && { network }),
     }),
   };
+  if (type === 'CREDIT_CARD') {
+    previewAcc.limit = Math.round(limitNum * 100);
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -108,7 +137,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
         {/* Preview */}
         <View style={{ marginBottom: 18 }}>
           {brand ? (
-            <BankCard acc={previewAcc} balance={Math.round(balanceNum * 100)} />
+            <BankCard acc={previewAcc} balance={Math.round(previewInitial * 100)} />
           ) : (
             <View style={{
               borderRadius: 22, overflow: 'hidden',
@@ -135,12 +164,12 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                 <Text style={{
                   fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: 'rgba(255,255,255,0.8)',
                   letterSpacing: 0.3, marginTop: 18,
-                }}>SALDO</Text>
+                }}>{type === 'CREDIT_CARD' ? 'DISPONIBLE' : 'SALDO'}</Text>
                 <Text style={{
                   fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 24, color: '#fff',
                   letterSpacing: -0.6, marginTop: 2,
                   fontVariant: ['tabular-nums'],
-                }}>${balanceNum.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</Text>
+                }}>${(type === 'CREDIT_CARD' ? (limitNum ? limitNum - Math.abs(previewInitial) : balanceNum) : balanceNum).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</Text>
                 <Text style={{
                   fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: '#fff', opacity: 0.9,
                   marginTop: 8,
@@ -331,31 +360,98 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
             </>
           ) : null}
 
-          <Text style={{
-            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
-            marginTop: 18, marginBottom: 8,
-          }}>SALDO INICIAL</Text>
-          <TextInput
-            value={balance}
-            onChangeText={(v) => {
-              const clean = v.replace(/[^0-9.]/g, '');
-              const parts = clean.split('.');
-              const normalized = parts.length > 2
-                ? parts[0] + '.' + parts.slice(1).join('')
-                : clean;
-              setBalance(normalized.slice(0, 14));
-            }}
-            placeholder="0.00"
-            placeholderTextColor={t.textMuted}
-            keyboardType="decimal-pad"
-            style={{
-              paddingVertical: 12,
-              borderBottomWidth: 1, borderBottomColor: t.border,
-              color: t.text, fontSize: 15,
-              fontFamily: 'PlusJakartaSans_600SemiBold',
-              fontVariant: ['tabular-nums'],
-            }}
-          />
+          {type === 'CREDIT_CARD' ? (
+            <>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                marginTop: 18, marginBottom: 8,
+              }}>LÍMITE DE CRÉDITO</Text>
+              <TextInput
+                value={limit}
+                onChangeText={(v) => {
+                  const clean = v.replace(/[^0-9.]/g, '');
+                  const parts = clean.split('.');
+                  const normalized = parts.length > 2
+                    ? parts[0] + '.' + parts.slice(1).join('')
+                    : clean;
+                  setLimit(normalized.slice(0, 14));
+                }}
+                placeholder="0.00"
+                placeholderTextColor={t.textMuted}
+                keyboardType="decimal-pad"
+                style={{
+                  paddingVertical: 12,
+                  borderBottomWidth: 1, borderBottomColor: t.border,
+                  color: t.text, fontSize: 15,
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontVariant: ['tabular-nums'],
+                }}
+              />
+
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                marginTop: 18, marginBottom: 8,
+              }}>CRÉDITO DISPONIBLE</Text>
+              <TextInput
+                value={balance}
+                onChangeText={(v) => {
+                  const clean = v.replace(/[^0-9.]/g, '');
+                  const parts = clean.split('.');
+                  const normalized = parts.length > 2
+                    ? parts[0] + '.' + parts.slice(1).join('')
+                    : clean;
+                  setBalance(normalized.slice(0, 14));
+                }}
+                placeholder="0.00"
+                placeholderTextColor={t.textMuted}
+                keyboardType="decimal-pad"
+                style={{
+                  paddingVertical: 12,
+                  borderBottomWidth: 1, borderBottomColor: t.border,
+                  color: t.text, fontSize: 15,
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontVariant: ['tabular-nums'],
+                }}
+              />
+
+              {limit ? (
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.indigo,
+                  marginTop: 10, lineHeight: 16,
+                }}>
+                  De tu límite de $ {parseFloat(limit) ? parseFloat(limit).toLocaleString('es-MX', { minimumFractionDigits: 2 }) : '0.00'}, tienes $ {parseFloat(balance) ? parseFloat(balance).toLocaleString('es-MX', { minimumFractionDigits: 2 }) : '0.00'} de crédito disponible. Esto significa que debes la diferencia (deuda): <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold' }}>$ {Math.max(0, (parseFloat(limit) || 0) - (parseFloat(balance) || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</Text>.
+                </Text>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                marginTop: 18, marginBottom: 8,
+              }}>SALDO INICIAL</Text>
+              <TextInput
+                value={balance}
+                onChangeText={(v) => {
+                  const clean = v.replace(/[^0-9.]/g, '');
+                  const parts = clean.split('.');
+                  const normalized = parts.length > 2
+                    ? parts[0] + '.' + parts.slice(1).join('')
+                    : clean;
+                  setBalance(normalized.slice(0, 14));
+                }}
+                placeholder="0.00"
+                placeholderTextColor={t.textMuted}
+                keyboardType="decimal-pad"
+                style={{
+                  paddingVertical: 12,
+                  borderBottomWidth: 1, borderBottomColor: t.border,
+                  color: t.text, fontSize: 15,
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontVariant: ['tabular-nums'],
+                }}
+              />
+            </>
+          )}
 
           {!brand ? (
             <>

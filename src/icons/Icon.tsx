@@ -13,7 +13,7 @@ export type IconName =
   | 'briefcase' | 'laptop' | 'gift' | 'trending' | 'more'
   | 'plane' | 'shield' | 'piggy' | 'cash' | 'card'
   | 'logout' | 'globe' | 'lock' | 'help' | 'flame' | 'lightbulb' | 'pin'
-  | 'tag' | 'note' | 'send' | 'target';
+  | 'tag' | 'note' | 'send' | 'target' | 'smartphone';
 
 export interface IconProps {
   name: IconName | string;
@@ -260,6 +260,11 @@ export function Icon({ name, size = 20, color = '#000', strokeWidth = 2, style }
         <Circle cx="12" cy="12" r="10" />
         <Circle cx="12" cy="12" r="6" />
         <Circle cx="12" cy="12" r="2" />
+      </Svg>;
+    case 'smartphone':
+      return <Svg {...common}>
+        <Rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+        <Line x1="12" y1="18" x2="12.01" y2="18" />
       </Svg>;
     default:
       return <Svg {...common}><Circle cx="12" cy="12" r="8" /></Svg>;

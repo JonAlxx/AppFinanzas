@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Modal, Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface SheetProps {
@@ -11,6 +12,7 @@ export interface SheetProps {
 
 export function Sheet({ open, onClose, children, height = '88%' }: SheetProps) {
   const { t } = useTheme();
+  const insets = useSafeAreaInsets();
   const slide = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -45,11 +47,12 @@ export function Sheet({ open, onClose, children, height = '88%' }: SheetProps) {
 
         <Animated.View style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
-          maxHeight: height as any,
+          height: height as any,
           backgroundColor: t.surface,
           borderTopLeftRadius: 28, borderTopRightRadius: 28,
           shadowColor: '#000', shadowOffset: { width: 0, height: -10 },
           shadowOpacity: 0.15, shadowRadius: 30, elevation: 24,
+          paddingBottom: insets.bottom,
           transform: [{
             translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }),
           }],

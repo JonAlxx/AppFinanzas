@@ -13,6 +13,7 @@ import { colorFor, softFor } from '../theme/theme';
 import { BankCard } from '../components/BankCard';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { ProgressBar } from '../components/ProgressBar';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SectionTitle } from '../components/SectionTitle';
 import { TransactionRow } from '../components/TransactionRow';
@@ -126,12 +127,12 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
               <Text style={{
                 fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: 'rgba(255,255,255,0.8)',
                 letterSpacing: 0.4, marginTop: 22,
-              }}>SALDO</Text>
+              }}>{acc.type === 'CREDIT_CARD' ? 'DISPONIBLE' : 'SALDO'}</Text>
               <Text style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 28, color: '#fff',
                 letterSpacing: -0.8, marginTop: 2,
                 fontVariant: ['tabular-nums'],
-              }}>{fmtMXN(balance)}</Text>
+              }}>{acc.type === 'CREDIT_CARD' && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (acc.type === 'CREDIT_CARD' ? fmtMXN(Math.abs(balance)) : fmtMXN(balance))}</Text>
             </LinearGradient>
           </View>
         )}
@@ -168,6 +169,83 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
             }}>Eliminar</Text>
           </Pressable>
         </View>
+
+        {/* Detalle de Crédito si aplica */}
+        {acc.type === 'CREDIT_CARD' && (
+          <Card padding={16} style={{ marginTop: 14 }}>
+            <SectionTitle title="Detalle de Crédito" />
+            
+            {acc.limit ? (
+              <>
+                <View style={{ marginTop: 8, marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                    }}>Progreso de uso</Text>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text,
+                      fontVariant: ['tabular-nums'],
+                    }}>
+                      {((Math.abs(balance) / acc.limit) * 100).toFixed(0)}% usado
+                    </Text>
+                  </View>
+                  <ProgressBar
+                    pct={(Math.abs(balance) / acc.limit) * 100}
+                    color={acc.color || 'rose'}
+                    height={8}
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
+                      letterSpacing: 0.2,
+                    }}>LÍMITE</Text>
+                    <Text numberOfLines={1} style={{
+                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text,
+                      marginTop: 4, fontVariant: ['tabular-nums'],
+                    }}>{fmtMXN(acc.limit)}</Text>
+                  </View>
+                  
+                  <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.rose,
+                      letterSpacing: 0.2,
+                    }}>USADO (DEUDA)</Text>
+                    <Text numberOfLines={1} style={{
+                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.rose,
+                      marginTop: 4, fontVariant: ['tabular-nums'],
+                    }}>{fmtMXN(Math.abs(balance))}</Text>
+                  </View>
+
+                  <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.green,
+                      letterSpacing: 0.2,
+                    }}>DISPONIBLE</Text>
+                    <Text numberOfLines={1} style={{
+                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.green,
+                      marginTop: 4, fontVariant: ['tabular-nums'],
+                    }}>{fmtMXN(acc.limit - Math.abs(balance))}</Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <View style={{ marginTop: 8 }}>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: t.textMuted,
+                }}>
+                  Límite de crédito no configurado.
+                </Text>
+              </View>
+            )}
+          </Card>
+        )}
 
         {/* Stats 30d */}
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>

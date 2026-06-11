@@ -50,6 +50,7 @@ export interface Transaction {
   destinationAccountId?: string | null;
   categoryId?: string | null;
   note?: string | null;
+  destinationGoalId?: string | null;
 }
 
 export interface Budget {
@@ -67,6 +68,8 @@ export interface SavingsGoal {
   deadline: number | null;
   color: string;
   icon: string;
+  yields?: boolean;
+  yieldRate?: number;
 }
 
 export type NotificationType = 'budget' | 'goal' | 'income' | 'tip';
@@ -119,5 +122,13 @@ export interface AppState {
   dark: boolean;
   balanceHidden: boolean;
   profile?: UserProfile;
+  cardOrder?: string[];
 }
+
+export interface MonthPoint {
+  month: string;
+  income: number;
+  expense: number;
+}
+
 

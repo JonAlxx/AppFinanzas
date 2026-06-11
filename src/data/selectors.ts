@@ -1,16 +1,25 @@
-import { Account, Category, Recurring, Transaction } from './types';
+import { Account, Category, Recurring, Transaction, MonthPoint } from './types';
 import { catById } from './catalog';
 
 
-const LIQUID_TYPES: Account['type'][] = ['CASH', 'BANK', 'DEBIT_CARD', 'SAVINGS', 'INVESTMENT', 'DIGITAL_WALLET'];
+const DEBIT_TYPES: Account['type'][] = ['BANK', 'DEBIT_CARD', 'SAVINGS', 'INVESTMENT', 'DIGITAL_WALLET'];
+const CASH_TYPES: Account['type'][] = ['CASH'];
 const CREDIT_TYPES: Account['type'][] = ['CREDIT_CARD'];
 
-export function isLiquidAccount(acc: Account): boolean {
-  return LIQUID_TYPES.includes(acc.type);
+export function isDebitAccount(acc: Account): boolean {
+  return DEBIT_TYPES.includes(acc.type);
+}
+
+export function isCashAccount(acc: Account): boolean {
+  return CASH_TYPES.includes(acc.type);
 }
 
 export function isCreditAccount(acc: Account): boolean {
   return CREDIT_TYPES.includes(acc.type);
+}
+
+export function isLiquidAccount(acc: Account): boolean {
+  return isDebitAccount(acc) || isCashAccount(acc);
 }
 
 export function computeAccountBalance(account: Account, txs: Transaction[]): number {
@@ -92,20 +101,23 @@ export function dailySeries(txs: Transaction[], days = 7, type: 'EXPENSE' | 'INC
   return series;
 }
 
-export interface MonthPoint { month: string; income: number; expense: number }
-
-export interface BalanceSummary { liquid: number; credit: number; total: number }
+export interface BalanceSummary { debit: number; cash: number; credit: number; total: number }
 
 export function computeBalanceSummary(accounts: Account[], txs: Transaction[]): BalanceSummary {
-  let liquid = 0;
+  let debit = 0;
+  let cash = 0;
   let credit = 0;
   for (const acc of accounts) {
     const bal = computeAccountBalance(acc, txs);
-    if (isCreditAccount(acc)) credit += bal;
-    else if (isLiquidAccount(acc)) liquid += bal;
-    else liquid += bal; // fallback
+    if (isCreditAccount(acc)) {
+      credit += bal;
+    } else if (isCashAccount(acc)) {
+      cash += bal;
+    } else {
+      debit += bal;
+    }
   }
-  return { liquid, credit, total: liquid + credit };
+  return { debit, cash, credit, total: debit + cash + credit };
 }
 
 // ── Recurring helpers ──────────────────────────────────────────
@@ -177,14 +189,14 @@ export function nextDueAfter(rule: Recurring, fromMs: number): number | null {
 
 export interface UpcomingPayment { rule: Recurring; date: number }
 
-/** Next N occurrences across all rules, sorted by date asc. */
 export function upcomingPayments(rules: Recurring[], days = 60, limit = 20): UpcomingPayment[] {
   const today = startOfDay(Date.now());
   const horizon = today + days * 86400000;
   const all: UpcomingPayment[] = [];
   for (const r of rules) {
     if (!r.active) continue;
-    const due = dueDatesBetween(r, today, horizon);
+    const from = r.lastGenerated ? startOfDay(r.lastGenerated) + 86400000 : startOfDay(r.startDate);
+    const due = dueDatesBetween(r, from, horizon);
     for (const d of due) all.push({ rule: r, date: d });
   }
   all.sort((a, b) => a.date - b.date);

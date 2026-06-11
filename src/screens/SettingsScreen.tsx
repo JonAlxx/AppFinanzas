@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 
 import { DEFAULT_CATEGORIES } from '../data/catalog';
-import { exportTransactionsCSV } from '../data/export';
+import { exportAppStateJSON, exportTransactionsCSV } from '../data/export';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -101,23 +103,51 @@ export function SettingsScreen() {
   const { state, dispatch } = useAppState();
   const { navigate } = useNavigation();
   const [showCurrencySheet, setShowCurrencySheet] = useState(false);
+  const [showExportSheet, setShowExportSheet] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const totalCategories = DEFAULT_CATEGORIES.length + state.customCategories.length;
   const customCount = state.customCategories.length;
   const currentCurrency = CURRENCY_OPTIONS.find(c => c.code === state.currency) || CURRENCY_OPTIONS[0];
 
-  async function handleExport() {
-    if (exporting) return;
-    setExporting(true);
-    try {
-      const result = await exportTransactionsCSV(state.transactions, state.accounts, state.customCategories);
-      if (!result.ok) {
-        Alert.alert('No se pudo exportar', result.error);
-      }
-    } finally {
-      setExporting(false);
-    }
+  async function handleImport() {
+    Alert.alert(
+      'Importar datos',
+      'Esto reemplazará todos tus datos actuales con la información de la copia de seguridad. ¿Deseas continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Importar',
+          style: 'default',
+          onPress: async () => {
+            try {
+              const result = await DocumentPicker.getDocumentAsync({
+                type: 'application/json',
+                copyToCacheDirectory: true,
+              });
+              if (result.canceled || !result.assets || result.assets.length === 0) {
+                return;
+              }
+              const asset = result.assets[0];
+              const fileContent = await (FileSystem as any).readAsStringAsync(asset.uri, { encoding: 'utf8' });
+              const data = JSON.parse(fileContent);
+
+              // Validar formato básico
+              if (!data || typeof data !== 'object' || !Array.isArray(data.accounts) || !Array.isArray(data.transactions)) {
+                Alert.alert('Error', 'El archivo seleccionado no es una copia de seguridad válida de esta aplicación.');
+                return;
+              }
+
+              // Importar datos
+              dispatch({ type: 'IMPORT_STATE', state: data });
+              Alert.alert('Éxito', 'Toda tu información ha sido restaurada con éxito.');
+            } catch (e: any) {
+              Alert.alert('Error al importar', e?.message || 'Asegúrate de haber seleccionado un archivo JSON de copia de seguridad válido.');
+            }
+          }
+        }
+      ]
+    );
   }
 
   function handleReset() {
@@ -211,8 +241,14 @@ export function SettingsScreen() {
           <Divider />
           <Row
             icon="send" color="green" title="Exportar datos"
-            value={exporting ? 'Exportando…' : `${state.transactions.length} movimientos · CSV`}
-            onPress={handleExport}
+            value={exporting ? 'Exportando…' : 'Exportar movimientos o respaldo'}
+            onPress={() => setShowExportSheet(true)}
+          />
+          <Divider />
+          <Row
+            icon="wallet" color="indigo" title="Importar datos"
+            value="Restaurar copia de seguridad (JSON)"
+            onPress={handleImport}
           />
           <Divider />
           <Row
@@ -296,6 +332,92 @@ export function SettingsScreen() {
             );
           })}
         </ScrollView>
+      </Sheet>
+
+      {/* Export options sheet */}
+      <Sheet open={showExportSheet} onClose={() => setShowExportSheet(false)} height="35%">
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 16,
+          }}>Exportar datos</Text>
+          
+          <View style={{ gap: 10 }}>
+            <Pressable
+              onPress={async () => {
+                setShowExportSheet(false);
+                if (exporting) return;
+                setExporting(true);
+                try {
+                  const res = await exportTransactionsCSV(state.transactions, state.accounts, state.customCategories);
+                  if (!res.ok) {
+                    Alert.alert('No se pudo exportar', res.error);
+                  }
+                } finally {
+                  setExporting(false);
+                }
+              }}
+              style={({ pressed }) => [{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                padding: 14, borderRadius: 16, backgroundColor: t.surfaceAlt,
+                borderWidth: 1, borderColor: t.border,
+                opacity: pressed ? 0.75 : 1,
+              }]}
+            >
+              <View style={{
+                width: 38, height: 38, borderRadius: 11, backgroundColor: softFor(t, 'green'),
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Icon name="list" size={18} color={colorFor(t, 'green')} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text }}>
+                  Exportar movimientos (CSV)
+                </Text>
+                <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+                  Ideal para Excel o Google Sheets
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={async () => {
+                setShowExportSheet(false);
+                if (exporting) return;
+                setExporting(true);
+                try {
+                  const res = await exportAppStateJSON(state);
+                  if (!res.ok) {
+                    Alert.alert('No se pudo exportar', res.error);
+                  }
+                } finally {
+                  setExporting(false);
+                }
+              }}
+              style={({ pressed }) => [{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                padding: 14, borderRadius: 16, backgroundColor: t.surfaceAlt,
+                borderWidth: 1, borderColor: t.border,
+                opacity: pressed ? 0.75 : 1,
+              }]}
+            >
+              <View style={{
+                width: 38, height: 38, borderRadius: 11, backgroundColor: softFor(t, 'blue'),
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Icon name="wallet" size={18} color={colorFor(t, 'blue')} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text }}>
+                  Respaldo completo de la app (JSON)
+                </Text>
+                <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+                  Para transferir a otro celular
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        </View>
       </Sheet>
     </View>
   );

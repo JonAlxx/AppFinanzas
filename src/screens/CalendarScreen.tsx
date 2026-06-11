@@ -8,12 +8,14 @@ import { Recurring } from '../data/types';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
+import { softFor } from '../theme/theme';
 
 import { CategoryBadge } from '../components/Badges';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SubscriptionBadge } from '../components/SubscriptionBadge';
+import { Sheet } from '../components/Sheet';
 import { Icon } from '../icons/Icon';
 
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -33,7 +35,7 @@ function startOfDay(ms: number): number {
 
 export function CalendarScreen() {
   const { t } = useTheme();
-  const { state } = useAppState();
+  const { state, dispatch } = useAppState();
   const { back, navigate } = useNavigation();
 
   const today = useMemo(() => {
@@ -45,6 +47,24 @@ export function CalendarScreen() {
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(new Date().getMonth()); // 0-11
   const [selectedDate, setSelectedDate] = useState<number>(today);
+  const [selectedUpcoming, setSelectedUpcoming] = useState<{ rule: Recurring; date: number } | null>(null);
+
+  function confirmPayment(p: { rule: Recurring; date: number }) {
+    const newTx = {
+      id: 'tx-rec-' + p.rule.id + '-' + p.date,
+      type: p.rule.type,
+      amount: p.rule.amount,
+      date: p.date,
+      accountId: p.rule.accountId,
+      categoryId: p.rule.categoryId || null,
+      note: p.rule.note || null,
+    };
+    const updatedRules = state.recurring.map(r => 
+      r.id === p.rule.id ? { ...r, lastGenerated: p.date } : r
+    );
+    dispatch({ type: 'APPLY_MATERIALIZATION', newTxs: [newTx], updatedRules });
+    setSelectedUpcoming(null);
+  }
 
   // Build calendar grid
   const grid = useMemo(() => {
@@ -240,7 +260,7 @@ export function CalendarScreen() {
                   return (
                     <Pressable
                       key={r.id}
-                      onPress={() => navigate({ screen: 'add-recurring', id: r.id })}
+                      onPress={() => setSelectedUpcoming({ rule: r, date: selectedDate })}
                       style={({ pressed }) => [{
                         flexDirection: 'row', alignItems: 'center', gap: 12,
                         paddingHorizontal: 14, paddingVertical: 12,
@@ -289,6 +309,135 @@ export function CalendarScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Confirmation Sheet for Upcoming / Due Payment */}
+      <Sheet open={selectedUpcoming !== null} onClose={() => setSelectedUpcoming(null)} height="55%">
+        {selectedUpcoming && (() => {
+          const p = selectedUpcoming;
+          const cat = p.rule.categoryId ? catById(p.rule.categoryId, state.customCategories) : undefined;
+          const isIncome = p.rule.type === 'INCOME';
+          const acc = state.accounts.find(a => a.id === p.rule.accountId);
+          const d = new Date(p.date);
+          const dateStr = `${d.getDate()} de ${MONTHS[d.getMonth()]}`;
+          
+          // Custom Nomina detection
+          const isSalary = p.rule.note?.toLowerCase().includes('nomina') || 
+                          p.rule.note?.toLowerCase().includes('nómina') || 
+                          p.rule.note?.toLowerCase().includes('sueldo') || 
+                          cat?.name?.toLowerCase().includes('nomina') ||
+                          cat?.name?.toLowerCase().includes('sueldo');
+
+          return (
+            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+                letterSpacing: -0.3, marginBottom: 16,
+              }}>
+                {isIncome ? 'Registrar Ingreso' : 'Registrar Pago'}
+              </Text>
+              
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 14,
+                padding: 16, borderRadius: 18, backgroundColor: t.surfaceAlt,
+                borderWidth: 1, borderColor: t.border, marginBottom: 20,
+              }}>
+                <View style={{
+                  width: 46, height: 46, borderRadius: 14,
+                  backgroundColor: softFor(t, isIncome ? 'green' : 'rose'),
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name={isIncome ? 'arrow-down' : 'rotate'} size={22} color={isIncome ? t.green : t.rose} strokeWidth={2.2} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.text,
+                  }}>{p.rule.note || cat?.name || 'Transacción Recurrente'}</Text>
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted,
+                    marginTop: 2,
+                  }}>
+                    {acc?.name} · {dateStr}
+                  </Text>
+                </View>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 16,
+                  color: isIncome ? t.green : t.text,
+                  fontVariant: ['tabular-nums'],
+                }}>
+                  {isIncome ? '+' : '-'}{fmtMXN(p.rule.amount).replace('-', '')}
+                </Text>
+              </View>
+
+              <View style={{ gap: 10 }}>
+                <Pressable
+                  onPress={() => confirmPayment(p)}
+                  style={({ pressed }) => [{
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                    backgroundColor: isIncome ? t.green : t.indigo,
+                    alignItems: 'center',
+                    flexDirection: 'row', justifyContent: 'center', gap: 8,
+                    opacity: pressed ? 0.85 : 1,
+                  }]}
+                >
+                  <Icon name="check" size={18} color="#fff" strokeWidth={3} />
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold',
+                    fontSize: 14,
+                    color: '#fff',
+                  }}>
+                    {isIncome 
+                      ? (isSalary ? '¡Sí, ya cayó la nómina!' : 'Confirmar Ingreso Recibido') 
+                      : 'Confirmar Pago Realizado'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    setSelectedUpcoming(null);
+                    navigate({ screen: 'add-recurring', id: p.rule.id });
+                  }}
+                  style={({ pressed }) => [{
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                    backgroundColor: 'transparent',
+                    borderWidth: 1, borderColor: t.border,
+                    alignItems: 'center',
+                    opacity: pressed ? 0.75 : 1,
+                  }]}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold',
+                    fontSize: 14,
+                    color: t.text,
+                  }}>
+                    Editar Programación
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setSelectedUpcoming(null)}
+                  style={({ pressed }) => [{
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                    backgroundColor: t.surfaceAlt,
+                    alignItems: 'center',
+                    opacity: pressed ? 0.75 : 1,
+                  }]}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold',
+                    fontSize: 14,
+                    color: t.textMuted,
+                  }}>
+                    Cancelar
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })()}
+      </Sheet>
     </View>
   );
 }
