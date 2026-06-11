@@ -143,25 +143,39 @@ export function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Profile */}
-        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <LinearGradient
-            colors={[t.indigo, t.violet]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={{
-              width: 56, height: 56, borderRadius: 28,
-              alignItems: 'center', justifyContent: 'center',
-            }}
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 16, color: t.text,
-            }}>Tu perfil</Text>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
-              marginTop: 2,
-            }}>Finanzas Personales</Text>
-          </View>
-        </Card>
+        <Pressable
+          onPress={() => navigate('profile')}
+          style={({ pressed }) => [pressed && { opacity: 0.8 }]}
+        >
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <LinearGradient
+              colors={[t.indigo, t.violet]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{
+                width: 56, height: 56, borderRadius: 28,
+                alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: '#fff',
+              }}>
+                {(state.profile?.name || '').trim()
+                  ? (state.profile?.name || '').trim().split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()
+                  : 'U'}
+              </Text>
+            </LinearGradient>
+            <View style={{ flex: 1 }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 16, color: t.text,
+              }}>{state.profile?.name || 'Tu perfil'}</Text>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
+                marginTop: 2,
+              }}>{state.profile?.email || 'Finanzas Personales'}</Text>
+            </View>
+            <Icon name="chevron-right" size={18} color={t.textMuted} />
+          </Card>
+        </Pressable>
 
         <Card style={{ marginTop: 14, padding: 4 }}>
           <Row

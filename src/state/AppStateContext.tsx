@@ -23,6 +23,11 @@ export function AppStateProvider({
         customCategories: initial.customCategories ?? [],
         currency: initial.currency ?? 'MXN',
         biometricLock: initial.biometricLock ?? false,
+        profile: initial.profile ?? {
+          name: 'Tu Perfil',
+          email: 'Finanzas Personales',
+          phone: '',
+        },
       }
     : initialState(false);
   const [state, dispatch] = useReducer(reducer, seed);

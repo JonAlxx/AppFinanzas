@@ -20,7 +20,8 @@ export type Route =
   | { screen: 'categories' }
   | { screen: 'add-category'; id?: string }
   | { screen: 'help' }
-  | { screen: 'security' };
+  | { screen: 'security' }
+  | { screen: 'profile' };
 
 export type ScreenId = Route['screen'];
 
@@ -29,5 +30,5 @@ export const BOTTOM_TABS: ScreenId[] = ['dashboard', 'transactions', 'accounts',
 export const SCREENS_WITH_BOTTOM_NAV: ScreenId[] = [
   'dashboard', 'transactions', 'accounts', 'reports', 'budgets',
   'goals', 'settings', 'notifications', 'account-detail',
-  'recurring', 'calendar', 'categories', 'help', 'security',
+  'recurring', 'calendar', 'categories', 'help', 'security', 'profile',
 ];

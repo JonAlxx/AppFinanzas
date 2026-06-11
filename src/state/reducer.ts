@@ -1,4 +1,4 @@
-import { Account, AppState, Category, Recurring, Transaction } from '../data/types';
+import { Account, AppState, Category, Recurring, Transaction, UserProfile } from '../data/types';
 import { SEED_ACCOUNTS, SEED_BUDGETS, SEED_GOALS, SEED_NOTIFICATIONS, SEED_TRANSACTIONS } from '../data/seed';
 
 export type Action =
@@ -22,6 +22,7 @@ export type Action =
   | { type: 'SET_THEME'; dark: boolean }
   | { type: 'TOGGLE_HIDE' }
   | { type: 'MARK_ALL_READ' }
+  | { type: 'UPDATE_PROFILE'; profile: UserProfile }
   | { type: 'RESET' };
 
 export function initialState(dark = false): AppState {
@@ -37,6 +38,11 @@ export function initialState(dark = false): AppState {
     biometricLock: false,
     dark,
     balanceHidden: false,
+    profile: {
+      name: 'Tu Perfil',
+      email: 'Finanzas Personales',
+      phone: '',
+    },
   };
 }
 
@@ -91,6 +97,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, balanceHidden: !state.balanceHidden };
     case 'MARK_ALL_READ':
       return { ...state, notifications: state.notifications.map(n => ({ ...n, read: true })) };
+    case 'UPDATE_PROFILE':
+      return { ...state, profile: action.profile };
     case 'RESET':
       return initialState(state.dark);
     default:

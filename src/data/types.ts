@@ -100,6 +100,12 @@ export interface Recurring {
   subscriptionBrand?: string | null; // optional id from SUBSCRIPTION_BRANDS
 }
 
+export interface UserProfile {
+  name: string;
+  email: string;
+  phone?: string;
+}
+
 export interface AppState {
   accounts: Account[];
   transactions: Transaction[];
@@ -112,4 +118,6 @@ export interface AppState {
   biometricLock: boolean;
   dark: boolean;
   balanceHidden: boolean;
+  profile?: UserProfile;
 }
+

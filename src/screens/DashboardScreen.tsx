@@ -131,7 +131,15 @@ export function DashboardScreen() {
               width: 44, height: 44, borderRadius: 22,
               alignItems: 'center', justifyContent: 'center',
             }}
-          />
+          >
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: '#fff',
+            }}>
+              {(state.profile?.name || '').trim()
+                ? (state.profile?.name || '').trim().split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()
+                : 'U'}
+            </Text>
+          </LinearGradient>
           <View style={{
             position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6,
             backgroundColor: t.green, borderWidth: 2, borderColor: t.bg,
@@ -140,7 +148,9 @@ export function DashboardScreen() {
 
         <Pressable onPress={() => navigate('settings')} style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted }}>Bienvenido</Text>
-          <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 17, color: t.text, letterSpacing: -0.4 }}>Tus finanzas</Text>
+          <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 17, color: t.text, letterSpacing: -0.4 }}>
+            {state.profile?.name || 'Tus finanzas'}
+          </Text>
         </Pressable>
 
         <Pressable onPress={() => dispatch({ type: 'TOGGLE_HIDE' })} style={{
