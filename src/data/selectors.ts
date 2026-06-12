@@ -140,6 +140,9 @@ export function ruleOccursOnDate(rule: Recurring, dateMs: number): boolean {
   if (day < start) return false;
   const d = new Date(day);
   switch (rule.frequency) {
+    case 'once': {
+      return day === start;
+    }
     case 'monthly': {
       const dom = rule.dayOfMonth ?? new Date(start).getDate();
       const maxDom = daysInMonth(d.getFullYear(), d.getMonth());
@@ -151,10 +154,12 @@ export function ruleOccursOnDate(rule: Recurring, dateMs: number): boolean {
       return d.getDay() === dow;
     }
     case 'biweekly': {
-      const startD = new Date(start);
-      if (d.getDay() !== startD.getDay()) return false;
-      const diffDays = Math.floor((day - start) / 86400000);
-      return diffDays % 14 === 0;
+      const dom = rule.dayOfMonth ?? new Date(start).getDate();
+      const secondDom = dom > 15 ? dom - 15 : dom + 15;
+      const maxDom = daysInMonth(d.getFullYear(), d.getMonth());
+      const effDom1 = Math.min(dom, maxDom);
+      const effDom2 = Math.min(secondDom, maxDom);
+      return d.getDate() === effDom1 || d.getDate() === effDom2;
     }
     case 'yearly': {
       const dom = rule.dayOfMonth ?? new Date(start).getDate();
@@ -195,6 +200,7 @@ export function upcomingPayments(rules: Recurring[], days = 60, limit = 20): Upc
   const all: UpcomingPayment[] = [];
   for (const r of rules) {
     if (!r.active) continue;
+    if (r.frequency === 'once' && r.lastGenerated) continue;
     const from = r.lastGenerated ? startOfDay(r.lastGenerated) + 86400000 : startOfDay(r.startDate);
     const due = dueDatesBetween(r, from, horizon);
     for (const d of due) all.push({ rule: r, date: d });
@@ -215,6 +221,7 @@ export function materializeRecurring(rules: Recurring[], now = Date.now()): Mate
   const updatedRules: Recurring[] = [];
   for (const r of rules) {
     if (!r.active) { updatedRules.push(r); continue; }
+    if (r.frequency === 'once' && r.lastGenerated) { updatedRules.push(r); continue; }
     const from = r.lastGenerated ? startOfDay(r.lastGenerated) + 86400000 : startOfDay(r.startDate);
     if (from > today) { updatedRules.push(r); continue; }
     const due = dueDatesBetween(r, from, today);
@@ -226,12 +233,17 @@ export function materializeRecurring(rules: Recurring[], now = Date.now()): Mate
         amount: r.amount,
         date: d,
         accountId: r.accountId,
-        categoryId: r.type === 'INCOME' ? r.categoryId : r.categoryId,
+        categoryId: r.categoryId || null,
         note: r.note,
       });
       lastGen = d;
     }
-    updatedRules.push({ ...r, lastGenerated: lastGen });
+    const isOnce = r.frequency === 'once';
+    updatedRules.push({
+      ...r,
+      lastGenerated: lastGen,
+      active: isOnce && lastGen ? false : r.active,
+    });
   }
   return { newTxs, updatedRules };
 }

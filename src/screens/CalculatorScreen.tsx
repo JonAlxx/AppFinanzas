@@ -1,0 +1,651 @@
+import React, { useState, useMemo } from 'react';
+import {
+  Alert, Pressable, ScrollView, Text, TextInput, View, StyleSheet,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+import { useAppState } from '../state/AppStateContext';
+import { useNavigation } from '../navigation/NavigationContext';
+import { useTheme } from '../theme/ThemeContext';
+import { softFor } from '../theme/theme';
+import { fmtMXN } from '../data/format';
+import { computeAccountBalance } from '../data/selectors';
+
+import { Card } from '../components/Card';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { SectionTitle } from '../components/SectionTitle';
+import { Sheet } from '../components/Sheet';
+import { Icon } from '../icons/Icon';
+import { AccountBadge } from '../components/Badges';
+
+interface SimulatedItem {
+  id: string;
+  note: string;
+  amount: number; // in cents
+  type: 'EXPENSE' | 'INCOME';
+}
+
+export function CalculatorScreen() {
+  const { t } = useTheme();
+  const { state } = useAppState();
+  const { back } = useNavigation();
+
+  // Simulation states
+  const [baseSalary, setBaseSalary] = useState<string>('0');
+  const [simulatedItems, setSimulatedItems] = useState<SimulatedItem[]>([]);
+
+  // Modal sheets states
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [showRecurringPicker, setShowRecurringPicker] = useState(false);
+
+  // New simulated item form states
+  const [newItemNote, setNewItemNote] = useState('');
+  const [newItemAmount, setNewItemAmount] = useState('');
+  const [newItemType, setNewItemType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
+
+  // Active fixed incomes in recurring rules
+  const fixedIncomes = useMemo(() => {
+    return state.recurring.filter(r => r.type === 'INCOME' && r.active);
+  }, [state.recurring]);
+
+  // Calculations
+  const baseSalaryNum = Math.round((parseFloat(baseSalary) || 0) * 100); // in cents
+
+  const totalSimExpenses = useMemo(() => {
+    return simulatedItems
+      .filter(item => item.type === 'EXPENSE')
+      .reduce((sum, item) => sum + item.amount, 0);
+  }, [simulatedItems]);
+
+  const totalSimIncomes = useMemo(() => {
+    return simulatedItems
+      .filter(item => item.type === 'INCOME')
+      .reduce((sum, item) => sum + item.amount, 0);
+  }, [simulatedItems]);
+
+  const netSimulatedBalance = baseSalaryNum - totalSimExpenses + totalSimIncomes;
+
+  // Add simulated item
+  function addSimulatedItem() {
+    const amt = parseFloat(newItemAmount) || 0;
+    if (amt <= 0) {
+      Alert.alert('Monto inválido', 'El monto simulado debe ser mayor a 0.');
+      return;
+    }
+    if (!newItemNote.trim()) {
+      Alert.alert('Falta concepto', 'Por favor ingresa un concepto o descripción.');
+      return;
+    }
+
+    const newItem: SimulatedItem = {
+      id: 'sim-' + Date.now(),
+      note: newItemNote.trim(),
+      amount: Math.round(amt * 100),
+      type: newItemType,
+    };
+
+    setSimulatedItems(prev => [...prev, newItem]);
+    setNewItemNote('');
+    setNewItemAmount('');
+    setShowAddSheet(false);
+  }
+
+  // Delete simulated item
+  function deleteSimulatedItem(id: string) {
+    setSimulatedItems(prev => prev.filter(item => item.id !== id));
+  }
+
+  // Reset simulation
+  function resetSimulation() {
+    Alert.alert(
+      'Resetear simulación',
+      '¿Seguro que quieres borrar todos los cálculos y empezar de nuevo?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar', style: 'destructive',
+          onPress: () => {
+            setBaseSalary('0');
+            setSimulatedItems([]);
+          },
+        },
+      ]
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <ScreenHeader
+        leftIcon="chevron-left"
+        onLeft={back}
+        title="Simulador de Nómina"
+        rightIcon={simulatedItems.length > 0 || parseFloat(baseSalary) > 0 ? 'trash' : null}
+        onRight={resetSimulation}
+        large={false}
+      />
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Helper info */}
+        <Text style={{
+          fontFamily: 'PlusJakartaSans_500Medium', fontSize: 13, color: t.textMuted,
+          textAlign: 'center', marginVertical: 8, paddingHorizontal: 8,
+        }}>
+          Simula compras y egresos sobre tu nómina sin crear movimientos reales en tus cuentas.
+        </Text>
+
+        {/* Input Nómina Base */}
+        <Card padding={16} style={{ marginTop: 10 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.5, marginBottom: 8,
+          }}>INGRESO BASE (NÓMINA O SALDO)</Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              borderBottomWidth: 1.5,
+              borderBottomColor: t.indigo,
+              paddingVertical: 4,
+            }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 18, color: t.textMuted, marginRight: 4,
+              }}>$</Text>
+              <TextInput
+                value={baseSalary === '0' ? '' : baseSalary}
+                onChangeText={(v) => {
+                  const clean = v.replace(/[^0-9.]/g, '');
+                  const parts = clean.split('.');
+                  if (parts.length > 2) return;
+                  setBaseSalary(clean || '0');
+                }}
+                placeholder="0.00"
+                placeholderTextColor={t.textMuted}
+                keyboardType="decimal-pad"
+                style={{
+                  flex: 1,
+                  color: t.text,
+                  fontSize: 18,
+                  fontFamily: 'PlusJakartaSans_700Bold',
+                }}
+              />
+            </View>
+          </View>
+
+          {/* Quick prefills buttons */}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+            <Pressable
+              onPress={() => setShowRecurringPicker(true)}
+              style={({ pressed }) => [{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                paddingVertical: 10,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: t.border,
+                backgroundColor: pressed ? t.surfaceAlt : t.surface,
+              }]}
+            >
+              <Icon name="rotate" size={14} color={t.indigo} />
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.text,
+              }}>Nómina fija</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setShowAccountPicker(true)}
+              style={({ pressed }) => [{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                paddingVertical: 10,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: t.border,
+                backgroundColor: pressed ? t.surfaceAlt : t.surface,
+              }]}
+            >
+              <Icon name="wallet" size={14} color={t.indigo} />
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.text,
+              }}>Saldo cuenta</Text>
+            </Pressable>
+          </View>
+        </Card>
+
+        {/* Dynamic Balance display */}
+        <Card style={{ marginTop: 18, overflow: 'hidden' }} padding={0}>
+          <LinearGradient
+            colors={[t.indigo, t.violet]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={{ padding: 18 }}
+          >
+            <View style={{ gap: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: 'rgba(255, 255, 255, 0.75)' }}>
+                  Ingreso base nómina
+                </Text>
+                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: '#fff', fontVariant: ['tabular-nums'] }}>
+                  {fmtMXN(baseSalaryNum)}
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: 'rgba(255, 255, 255, 0.75)' }}>
+                  Simulación de gastos
+                </Text>
+                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: '#ffb3c1', fontVariant: ['tabular-nums'] }}>
+                  -{fmtMXN(totalSimExpenses).replace('-', '')}
+                </Text>
+              </View>
+
+              {totalSimIncomes > 0 ? (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: 'rgba(255, 255, 255, 0.75)' }}>
+                    Simulación de ingresos
+                  </Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: '#b9fbc0', fontVariant: ['tabular-nums'] }}>
+                    +{fmtMXN(totalSimIncomes)}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View style={{ height: 1, backgroundColor: 'rgba(255, 255, 255, 0.18)', marginVertical: 4 }} />
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: '#fff' }}>
+                  RESTANTE ESTIMADO
+                </Text>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold',
+                  fontSize: 22,
+                  color: netSimulatedBalance >= 0 ? '#b9fbc0' : '#ffb3c1',
+                  fontVariant: ['tabular-nums'],
+                }}>
+                  {fmtMXN(netSimulatedBalance)}
+                </Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </Card>
+
+        {/* Simulated Items list */}
+        <View style={{ marginTop: 22 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <SectionTitle title="Cálculos simulados" />
+            <Pressable
+              onPress={() => setShowAddSheet(true)}
+              style={({ pressed }) => [{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 8,
+                backgroundColor: softFor(t, 'indigo'),
+                opacity: pressed ? 0.8 : 1,
+              }]}
+            >
+              <Icon name="plus" size={14} color={t.indigo} strokeWidth={2.5} />
+              <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.indigo }}>
+                Agregar
+              </Text>
+            </Pressable>
+          </View>
+
+          {simulatedItems.length === 0 ? (
+            <Card padding={24} style={{ marginTop: 12, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{
+                width: 44, height: 44, borderRadius: 12,
+                backgroundColor: t.border,
+                alignItems: 'center', justifyContent: 'center',
+                marginBottom: 10,
+              }}>
+                <Icon name="calculator" size={20} color={t.textMuted} />
+              </View>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text,
+                textAlign: 'center',
+              }}>
+                No hay conceptos agregados
+              </Text>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted,
+                textAlign: 'center', marginTop: 4, paddingHorizontal: 16,
+              }}>
+                Agrega gastos o ingresos estimados para ver cuánto dinero te quedaría disponible.
+              </Text>
+            </Card>
+          ) : (
+            <Card padding={4} style={{ marginTop: 12 }}>
+              {simulatedItems.map((item, idx) => {
+                const isExpense = item.type === 'EXPENSE';
+                return (
+                  <View key={item.id}>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 12,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                    }}>
+                      <View style={{
+                        width: 32, height: 32, borderRadius: 10,
+                        backgroundColor: softFor(t, isExpense ? 'rose' : 'green'),
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icon
+                          name={isExpense ? 'arrow-up' : 'arrow-down'}
+                          size={14}
+                          color={isExpense ? t.rose : t.green}
+                          strokeWidth={2.5}
+                        />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{
+                          fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text,
+                        }} numberOfLines={1}>
+                          {item.note}
+                        </Text>
+                        <Text style={{
+                          fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted,
+                          marginTop: 2,
+                        }}>
+                          {isExpense ? 'Simulación de gasto' : 'Simulación de ingreso'}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <Text style={{
+                          fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13,
+                          color: isExpense ? t.rose : t.green,
+                          fontVariant: ['tabular-nums'],
+                        }}>
+                          {isExpense ? '-' : '+'}{fmtMXN(item.amount).replace('-', '')}
+                        </Text>
+                        <Pressable
+                          onPress={() => deleteSimulatedItem(item.id)}
+                          hitSlop={8}
+                          style={({ pressed }) => [{
+                            opacity: pressed ? 0.7 : 1,
+                          }]}
+                        >
+                          <Icon name="x" size={16} color={t.textMuted} />
+                        </Pressable>
+                      </View>
+                    </View>
+                    {idx < simulatedItems.length - 1 ? (
+                      <View style={{ height: 1, backgroundColor: t.border, marginHorizontal: 14 }} />
+                    ) : null}
+                  </View>
+                );
+              })}
+            </Card>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Sheet to ADD simulated item */}
+      <Sheet open={showAddSheet} onClose={() => setShowAddSheet(false)} height="55%">
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, flex: 1 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 14,
+          }}>Agregar simulación</Text>
+
+          {/* Type picker */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+            <Pressable
+              onPress={() => setNewItemType('EXPENSE')}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                alignItems: 'center',
+                borderRadius: 10,
+                borderWidth: 1.5,
+                borderColor: newItemType === 'EXPENSE' ? t.rose : t.border,
+                backgroundColor: newItemType === 'EXPENSE' ? softFor(t, 'rose') : 'transparent',
+              }}
+            >
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                color: newItemType === 'EXPENSE' ? t.rose : t.text,
+              }}>Gasto (-)</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setNewItemType('INCOME')}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                alignItems: 'center',
+                borderRadius: 10,
+                borderWidth: 1.5,
+                borderColor: newItemType === 'INCOME' ? t.green : t.border,
+                backgroundColor: newItemType === 'INCOME' ? softFor(t, 'green') : 'transparent',
+              }}
+            >
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                color: newItemType === 'INCOME' ? t.green : t.text,
+              }}>Ingreso (+)</Text>
+            </Pressable>
+          </View>
+
+          {/* Amount input */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 6,
+          }}>MONTO</Text>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            borderBottomWidth: 1.5,
+            borderBottomColor: t.indigo,
+            paddingVertical: 4,
+            marginBottom: 16,
+          }}>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, color: t.textMuted, marginRight: 4,
+            }}>$</Text>
+            <TextInput
+              value={newItemAmount}
+              onChangeText={(v) => {
+                const clean = v.replace(/[^0-9.]/g, '');
+                const parts = clean.split('.');
+                if (parts.length > 2) return;
+                setNewItemAmount(clean);
+              }}
+              placeholder="0.00"
+              placeholderTextColor={t.textMuted}
+              keyboardType="decimal-pad"
+              autoFocus
+              style={{
+                flex: 1,
+                color: t.text,
+                fontSize: 16,
+                fontFamily: 'PlusJakartaSans_700Bold',
+              }}
+            />
+          </View>
+
+          {/* Concept note input */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 6,
+          }}>CONCEPTO / DESCRIPCIÓN</Text>
+          <TextInput
+            value={newItemNote}
+            onChangeText={setNewItemNote}
+            placeholder="Ej. Dentista, Renta, Bono extra"
+            placeholderTextColor={t.textMuted}
+            style={{
+              paddingVertical: 8,
+              borderBottomWidth: 1.5,
+              borderBottomColor: t.indigo,
+              color: t.text,
+              fontSize: 14,
+              fontFamily: 'PlusJakartaSans_600SemiBold',
+              marginBottom: 24,
+            }}
+          />
+
+          <Pressable
+            onPress={addSimulatedItem}
+            style={({ pressed }) => [{
+              paddingVertical: 14,
+              borderRadius: 16,
+              backgroundColor: t.indigo,
+              alignItems: 'center',
+              opacity: pressed ? 0.85 : 1,
+            }]}
+          >
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold',
+              fontSize: 14,
+              color: '#fff',
+            }}>
+              Agregar a la Simulación
+            </Text>
+          </Pressable>
+        </View>
+      </Sheet>
+
+      {/* Sheet to PICK base salary from recurring fixed incomes */}
+      <Sheet open={showRecurringPicker} onClose={() => setShowRecurringPicker(false)} height="60%">
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20, flex: 1 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 14,
+          }}>Elegir de ingresos fijos</Text>
+
+          {fixedIncomes.length === 0 ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.textMuted,
+                textAlign: 'center',
+              }}>
+                No tienes ingresos fijos registrados
+              </Text>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted,
+                textAlign: 'center', marginTop: 4, paddingHorizontal: 16,
+              }}>
+                Ve a Recurrentes y agrega un ingreso fijo para seleccionarlo aquí.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              <View style={{ gap: 8 }}>
+                {fixedIncomes.map(income => (
+                  <Pressable
+                    key={income.id}
+                    onPress={() => {
+                      setBaseSalary((income.amount / 100).toFixed(2));
+                      setShowRecurringPicker(false);
+                    }}
+                    style={({ pressed }) => [{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: t.border,
+                      backgroundColor: pressed ? t.surfaceAlt : t.surface,
+                    }]}
+                  >
+                    <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text,
+                      }} numberOfLines={1}>
+                        {income.note || 'Ingreso recurrente'}
+                      </Text>
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted,
+                        marginTop: 2,
+                      }}>
+                        Frecuencia: {income.frequency === 'biweekly' ? 'Quincenal' : 'Mensual'}
+                      </Text>
+                    </View>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.green,
+                      fontVariant: ['tabular-nums'],
+                    }}>
+                      {fmtMXN(income.amount)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+        </View>
+      </Sheet>
+
+      {/* Sheet to PICK base salary from accounts balance */}
+      <Sheet open={showAccountPicker} onClose={() => setShowAccountPicker(false)} height="60%">
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20, flex: 1 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 14,
+          }}>Elegir de saldo de cuenta</Text>
+
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+            <View style={{ gap: 8 }}>
+              {state.accounts.map(acc => {
+                const bal = computeAccountBalance(acc, state.transactions);
+                return (
+                  <Pressable
+                    key={acc.id}
+                    onPress={() => {
+                      setBaseSalary((bal / 100).toFixed(2));
+                      setShowAccountPicker(false);
+                    }}
+                    style={({ pressed }) => [{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: t.border,
+                      backgroundColor: pressed ? t.surfaceAlt : t.surface,
+                    }]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                      <AccountBadge acc={acc} size={28} radius={8} />
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text,
+                      }} numberOfLines={1}>
+                        {acc.name}
+                      </Text>
+                    </View>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_800ExtraBold',
+                      fontSize: 14,
+                      color: bal >= 0 ? t.text : t.rose,
+                      fontVariant: ['tabular-nums'],
+                    }}>
+                      {fmtMXN(bal)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      </Sheet>
+    </View>
+  );
+}

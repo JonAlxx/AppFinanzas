@@ -84,7 +84,7 @@ export interface AppNotification {
   accent: string;
 }
 
-export type RecurringFrequency = 'monthly' | 'weekly' | 'biweekly' | 'yearly';
+export type RecurringFrequency = 'monthly' | 'weekly' | 'biweekly' | 'yearly' | 'once';
 
 export interface Recurring {
   id: string;

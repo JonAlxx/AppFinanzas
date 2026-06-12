@@ -134,7 +134,7 @@ export function DashboardScreen() {
       note: p.rule.note || null,
     };
     const updatedRules = state.recurring.map(r => 
-      r.id === p.rule.id ? { ...r, lastGenerated: p.date } : r
+      r.id === p.rule.id ? { ...r, lastGenerated: p.date, active: r.frequency === 'once' ? false : r.active } : r
     );
     dispatch({ type: 'APPLY_MATERIALIZATION', newTxs: [newTx], updatedRules });
     setSelectedUpcoming(null);
@@ -488,7 +488,7 @@ export function DashboardScreen() {
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
           <QuickAction icon="rotate" color="violet" label="Recurrentes" onPress={() => navigate('recurring')} />
           <QuickAction icon="calendar" color="blue" label="Calendario" onPress={() => navigate('calendar')} />
-          <QuickAction icon="chart" color="teal" label="Presupuestos" onPress={() => navigate('budgets')} />
+          <QuickAction icon="calculator" color="teal" label="Calculadora" onPress={() => navigate('calculator')} />
           <QuickAction icon="cog" color="indigo" label="Ajustes" onPress={() => navigate('settings')} />
         </View>
 
@@ -618,36 +618,54 @@ export function DashboardScreen() {
           </View>
         ) : null}
 
-        {/* Active budgets */}
-        {activeBudgets.length > 0 ? (
-          <View style={{ marginTop: 18 }}>
-            <SectionTitle title="Presupuestos del mes" action="Ver todo" onAction={() => navigate('budgets')} />
-            <View style={{ gap: 10, marginTop: 10 }}>
-              {activeBudgets.map(b => {
-                const overColor = b.pct >= 100 ? t.rose : b.pct >= 80 ? t.orange : t.textMuted;
-                const barColor = b.pct >= 100 ? 'rose' : b.pct >= 80 ? 'orange' : b.cat?.color;
-                return (
-                  <Card key={b.id} padding={14}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <CategoryBadge cat={b.cat} size={36} radius={11} />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                          <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text }}>{b.cat?.name}</Text>
-                          <Text style={{
-                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
-                            color: overColor,
-                            fontVariant: ['tabular-nums'],
-                          }}>{fmtMXN(b.spent)} / {fmtMXN(b.limit)}</Text>
-                        </View>
-                        <ProgressBar pct={b.pct} color={barColor} />
-                      </View>
-                    </View>
-                  </Card>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
+        {/* Simulator Calculator CTA */}
+        <View style={{ marginTop: 18 }}>
+          <SectionTitle title="Simulador de Nómina" />
+          <Pressable
+            onPress={() => navigate('calculator')}
+            style={({ pressed }) => [{
+              marginTop: 10,
+              opacity: pressed ? 0.9 : 1,
+            }]}
+          >
+            <LinearGradient
+              colors={[t.indigo, t.violet]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{
+                borderRadius: 16,
+                padding: 18,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 16,
+                shadowColor: t.indigo,
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.25,
+                shadowRadius: 16,
+                elevation: 6,
+              }}
+            >
+              <View style={{
+                width: 46, height: 46, borderRadius: 14,
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Icon name="calculator" size={24} color="#fff" strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: '#fff',
+                }}>Simulador de gastos</Text>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: '#fff',
+                  opacity: 0.85, marginTop: 4, lineHeight: 15,
+                }}>
+                  Calcula de forma rápida cuánto te quedará de tu nómina simulando egresos o compras adicionales.
+                </Text>
+              </View>
+              <Icon name="chevron-right" size={20} color="#fff" strokeWidth={2.5} />
+            </LinearGradient>
+          </Pressable>
+        </View>
 
         {/* Recent transactions */}
         <View style={{ marginTop: 22 }}>

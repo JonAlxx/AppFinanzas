@@ -30,6 +30,7 @@ const KIND_OPTIONS: KindOpt[] = [
 ];
 
 const FREQ_OPTIONS: { id: RecurringFrequency; label: string }[] = [
+  { id: 'once', label: 'Una sola vez' },
   { id: 'monthly', label: 'Mensual' },
   { id: 'biweekly', label: 'Quincenal' },
   { id: 'weekly', label: 'Semanal' },
@@ -37,6 +38,10 @@ const FREQ_OPTIONS: { id: RecurringFrequency; label: string }[] = [
 ];
 
 const DAYS_OF_WEEK = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const MONTHS_SPANISH = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
 
 const SUB_IDS = Object.keys(SUBSCRIPTION_BRANDS);
 
@@ -78,9 +83,14 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
   const [dayOfMonth, setDayOfMonth] = useState<number>(editing?.dayOfMonth || new Date().getDate());
   const [dayOfWeek, setDayOfWeek] = useState<number>(editing?.dayOfWeek ?? new Date().getDay());
 
+  const [onceDay, setOnceDay] = useState<number>(() => editing ? new Date(editing.startDate).getDate() : new Date().getDate());
+  const [onceMonth, setOnceMonth] = useState<number>(() => editing ? new Date(editing.startDate).getMonth() : new Date().getMonth());
+  const [onceYear, setOnceYear] = useState<number>(() => editing ? new Date(editing.startDate).getFullYear() : new Date().getFullYear());
+
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [showCatSheet, setShowCatSheet] = useState(false);
   const [showDayMonthSheet, setShowDayMonthSheet] = useState(false);
+  const [showOnceDatePickerSheet, setShowOnceDatePickerSheet] = useState(false);
 
   const shake = useRef(new Animated.Value(0)).current;
   const amountInputRef = useRef<any>(null);
@@ -123,14 +133,31 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     let startDate = today.getTime();
-    if (frequency === 'monthly' || frequency === 'yearly') {
+    if (frequency === 'once' || frequency === 'yearly') {
+      startDate = new Date(onceYear, onceMonth, onceDay).getTime();
+    } else if (frequency === 'monthly') {
       // start on dayOfMonth this month if not passed, otherwise next month
       const candidate = new Date(today.getFullYear(), today.getMonth(), dayOfMonth);
       if (candidate.getTime() < today.getTime()) {
         candidate.setMonth(candidate.getMonth() + 1);
       }
       startDate = candidate.getTime();
-    } else if (frequency === 'weekly' || frequency === 'biweekly') {
+    } else if (frequency === 'biweekly') {
+      const dom = dayOfMonth;
+      const secondDom = dom > 15 ? dom - 15 : dom + 15;
+      const c1 = new Date(today.getFullYear(), today.getMonth(), dom);
+      const c2 = new Date(today.getFullYear(), today.getMonth(), secondDom);
+      let candidate = c1;
+      if (c1.getTime() < today.getTime() && c2.getTime() >= today.getTime()) {
+        candidate = c2;
+      } else if (c1.getTime() < today.getTime() && c2.getTime() < today.getTime()) {
+        const firstDom = Math.min(dom, secondDom);
+        candidate = new Date(today.getFullYear(), today.getMonth() + 1, firstDom);
+      } else if (c1.getTime() >= today.getTime() && c2.getTime() >= today.getTime()) {
+        candidate = c1.getTime() < c2.getTime() ? c1 : c2;
+      }
+      startDate = candidate.getTime();
+    } else if (frequency === 'weekly') {
       const diff = (dayOfWeek - today.getDay() + 7) % 7;
       startDate = today.getTime() + diff * 86400000;
     }
@@ -143,8 +170,13 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
       categoryId: isSubscription ? null : categoryId,
       note: note || null,
       frequency,
-      dayOfMonth: (frequency === 'monthly' || frequency === 'yearly') ? dayOfMonth : undefined,
-      dayOfWeek: (frequency === 'weekly' || frequency === 'biweekly') ? dayOfWeek : undefined,
+      dayOfMonth: (frequency === 'monthly' || frequency === 'biweekly') 
+        ? dayOfMonth 
+        : (frequency === 'yearly' || frequency === 'once') 
+          ? onceDay 
+          : undefined,
+      monthOfYear: (frequency === 'yearly') ? onceMonth : undefined,
+      dayOfWeek: (frequency === 'weekly') ? dayOfWeek : undefined,
       startDate,
       lastGenerated: editing?.lastGenerated || null,
       active: editing?.active ?? true,
@@ -401,8 +433,14 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
             </View>
           </View>
 
-          {/* Day picker */}
-          {(frequency === 'monthly' || frequency === 'yearly') ? (
+          {/* Day picker / Date picker */}
+          {(frequency === 'once' || frequency === 'yearly') ? (
+            <FormRow icon="calendar" label={frequency === 'yearly' ? "Fecha de inicio" : "Fecha programada"} onPress={() => setShowOnceDatePickerSheet(true)}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+              }}>{`${onceDay} de ${MONTHS_SPANISH[onceMonth]} de ${onceYear}`}</Text>
+            </FormRow>
+          ) : (frequency === 'monthly' || frequency === 'biweekly') ? (
             <FormRow icon="calendar" label="Día del mes" onPress={() => setShowDayMonthSheet(true)}>
               <Text style={{
                 fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
@@ -572,6 +610,133 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
               );
             })}
           </View>
+        </View>
+      </Sheet>
+
+      <Sheet open={showOnceDatePickerSheet} onClose={() => setShowOnceDatePickerSheet(false)} height="75%">
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, flex: 1 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 12,
+          }}>{frequency === 'yearly' ? 'Fecha de inicio' : 'Fecha programada'}</Text>
+
+          {/* Year selector */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 8, marginTop: 4,
+          }}>AÑO</Text>
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 14 }}>
+            {[2026, 2027, 2028, 2029].map(y => {
+              const selected = onceYear === y;
+              return (
+                <Pressable
+                  key={y}
+                  onPress={() => setOnceYear(y)}
+                  style={{
+                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                    backgroundColor: selected ? t.indigo : t.surfaceAlt,
+                    borderWidth: 1, borderColor: selected ? t.indigo : t.border,
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                    color: selected ? '#fff' : t.text,
+                  }}>{y}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Month selector */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 8,
+          }}>MES</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+            {MONTHS_SPANISH.map((m, idx) => {
+              const selected = onceMonth === idx;
+              return (
+                <Pressable
+                  key={m}
+                  onPress={() => setOnceMonth(idx)}
+                  style={{
+                    width: '23%', paddingVertical: 8, borderRadius: 10,
+                    alignItems: 'center',
+                    backgroundColor: selected ? t.indigo : t.surfaceAlt,
+                    borderWidth: 1, borderColor: selected ? t.indigo : t.border,
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                    color: selected ? '#fff' : t.text,
+                  }}>{m.substring(0, 3)}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Day selector */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 8,
+          }}>DÍA</Text>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {Array.from(
+                { length: new Date(onceYear, onceMonth + 1, 0).getDate() },
+                (_, i) => i + 1
+              ).map(d => {
+                const selected = onceDay === d;
+                return (
+                  <View key={d} style={{ width: '14.2857%', padding: 4 }}>
+                    <Pressable
+                      onPress={() => {
+                        setOnceDay(d);
+                      }}
+                      style={{
+                        height: 40, borderRadius: 10,
+                        alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: selected ? t.indigo : t.surfaceAlt,
+                        borderWidth: 1, borderColor: selected ? t.indigo : t.border,
+                      }}
+                    >
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13,
+                        color: selected ? '#fff' : t.text,
+                        fontVariant: ['tabular-nums'],
+                      }}>{d}</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          <Pressable
+            onPress={() => {
+              const maxDays = new Date(onceYear, onceMonth + 1, 0).getDate();
+              if (onceDay > maxDays) {
+                setOnceDay(maxDays);
+              }
+              setShowOnceDatePickerSheet(false);
+            }}
+            style={({ pressed }) => [{
+              marginTop: 14,
+              paddingVertical: 14,
+              borderRadius: 16,
+              backgroundColor: t.indigo,
+              alignItems: 'center',
+              opacity: pressed ? 0.85 : 1,
+            }]}
+          >
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold',
+              fontSize: 14,
+              color: '#fff',
+            }}>
+              Confirmar Fecha
+            </Text>
+          </Pressable>
         </View>
       </Sheet>
     </View>

@@ -10,6 +10,7 @@ import { AccountDetailScreen } from '../screens/AccountDetailScreen';
 import { AddTransactionScreen } from '../screens/AddTransactionScreen';
 import { AddAccountScreen } from '../screens/AddAccountScreen';
 import { BudgetsScreen } from '../screens/BudgetsScreen';
+import { CalculatorScreen } from '../screens/CalculatorScreen';
 import { GoalsScreen } from '../screens/GoalsScreen';
 import { AddGoalScreen } from '../screens/AddGoalScreen';
 import { ReportsScreen } from '../screens/ReportsScreen';
@@ -61,6 +62,9 @@ export function AppRouter() {
       break;
     case 'budgets':
       screen = <BudgetsScreen />;
+      break;
+    case 'calculator':
+      screen = <CalculatorScreen />;
       break;
     case 'goals':
       screen = <GoalsScreen />;

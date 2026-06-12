@@ -13,7 +13,7 @@ export type IconName =
   | 'briefcase' | 'laptop' | 'gift' | 'trending' | 'more'
   | 'plane' | 'shield' | 'piggy' | 'cash' | 'card'
   | 'logout' | 'globe' | 'lock' | 'help' | 'flame' | 'lightbulb' | 'pin'
-  | 'tag' | 'note' | 'send' | 'target' | 'smartphone';
+  | 'tag' | 'note' | 'send' | 'target' | 'smartphone' | 'calculator';
 
 export interface IconProps {
   name: IconName | string;
@@ -265,6 +265,16 @@ export function Icon({ name, size = 20, color = '#000', strokeWidth = 2, style }
       return <Svg {...common}>
         <Rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
         <Line x1="12" y1="18" x2="12.01" y2="18" />
+      </Svg>;
+    case 'calculator':
+      return <Svg {...common}>
+        <Rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+        <Line x1="8" y1="6" x2="16" y2="6" />
+        <Line x1="8" y1="10" x2="16" y2="10" />
+        <Line x1="8" y1="14" x2="10" y2="14" />
+        <Line x1="14" y1="14" x2="16" y2="14" />
+        <Line x1="8" y1="18" x2="10" y2="18" />
+        <Line x1="14" y1="18" x2="16" y2="18" />
       </Svg>;
     default:
       return <Svg {...common}><Circle cx="12" cy="12" r="8" /></Svg>;

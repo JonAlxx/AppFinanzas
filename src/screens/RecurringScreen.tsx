@@ -19,6 +19,7 @@ import { SubscriptionBadge } from '../components/SubscriptionBadge';
 import { Icon } from '../icons/Icon';
 
 const FREQ_LABEL: Record<RecurringFrequency, string> = {
+  once: 'Una sola vez',
   monthly: 'Mensual',
   weekly: 'Semanal',
   biweekly: 'Quincenal',

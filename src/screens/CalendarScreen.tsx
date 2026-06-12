@@ -60,7 +60,7 @@ export function CalendarScreen() {
       note: p.rule.note || null,
     };
     const updatedRules = state.recurring.map(r => 
-      r.id === p.rule.id ? { ...r, lastGenerated: p.date } : r
+      r.id === p.rule.id ? { ...r, lastGenerated: p.date, active: r.frequency === 'once' ? false : r.active } : r
     );
     dispatch({ type: 'APPLY_MATERIALIZATION', newTxs: [newTx], updatedRules });
     setSelectedUpcoming(null);
