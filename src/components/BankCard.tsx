@@ -13,6 +13,7 @@ export interface BankCardProps {
   balance: number;
   onPress?: () => void;
   compact?: boolean;
+  isHidden?: boolean;
 }
 
 function NetworkMark({ network }: { network?: string }) {
@@ -27,7 +28,7 @@ function NetworkMark({ network }: { network?: string }) {
   return null;
 }
 
-export function BankCard({ acc, balance, onPress, compact }: BankCardProps) {
+export function BankCard({ acc, balance, onPress, compact, isHidden }: BankCardProps) {
   const { t } = useTheme();
   const brand = acc.brand ? brandFor(acc.brand) : undefined;
   const isCC = acc.type === 'CREDIT_CARD';
@@ -43,7 +44,7 @@ export function BankCard({ acc, balance, onPress, compact }: BankCardProps) {
         borderRadius: 22, overflow: 'hidden',
         shadowColor: c, shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.45, shadowRadius: 24, elevation: 8,
-        height: compact ? 130 : undefined,
+        height: compact ? 130 : 168,
       }}>
         <LinearGradient
           colors={[c, c + 'cc' as any]}
@@ -74,7 +75,7 @@ export function BankCard({ acc, balance, onPress, compact }: BankCardProps) {
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: compact ? 18 : 22, color: '#fff',
               letterSpacing: -0.6, marginTop: 1,
               fontVariant: ['tabular-nums'],
-            }}>{isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance))}</Text>
+            }}>{isHidden ? '••••' : (isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)))}</Text>
             <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 10 : 13, color: '#fff', opacity: 0.95, marginTop: compact ? 1 : 4 }}>{acc.name}</Text>
           </View>
         </LinearGradient>
@@ -141,7 +142,7 @@ export function BankCard({ acc, balance, onPress, compact }: BankCardProps) {
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: compact ? 18 : 22, color: brand.text,
               letterSpacing: -0.6, marginTop: 1,
               fontVariant: ['tabular-nums'],
-            }}>{isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance))}</Text>
+            }}>{isHidden ? '••••' : (isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)))}</Text>
             <Text style={{
               fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: compact ? 10 : 12, color: 'rgba(255,255,255,0.85)',
               letterSpacing: 0.4, marginTop: compact ? 1 : 4,

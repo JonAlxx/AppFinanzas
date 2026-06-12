@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, TextInput, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { BRANDS } from '../data/catalog';
@@ -22,7 +22,7 @@ const TYPES: TypeOption[] = [
   { id: 'CREDIT_CARD', label: 'Crédito', icon: 'card' },
   { id: 'SAVINGS', label: 'Ahorro', icon: 'piggy' },
   { id: 'INVESTMENT', label: 'Inversión', icon: 'trending' },
-  { id: 'DIGITAL_WALLET', label: 'Cartera', icon: 'wallet' },
+  { id: 'DIGITAL_WALLET', label: 'Vales de despensa', icon: 'wallet' },
 ];
 
 const COLORS = ['indigo', 'violet', 'green', 'rose', 'orange', 'blue', 'teal', 'yellow'];
@@ -60,7 +60,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
 
   const accColor = colorFor(t, color);
   const balanceNum = parseFloat(balance) || 0;
-  const isCardLike = type === 'DEBIT_CARD' || type === 'CREDIT_CARD';
+  const isCardLike = type === 'DEBIT_CARD' || type === 'CREDIT_CARD' || type === 'DIGITAL_WALLET';
 
   function save() {
     if (!name) return;
@@ -128,9 +128,13 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
         rightIcon={null}
         large={false}
       />
-      <ScrollView
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+      >
+        <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -519,6 +523,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
           )}
         </Pressable>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

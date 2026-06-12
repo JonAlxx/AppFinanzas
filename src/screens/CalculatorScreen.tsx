@@ -26,6 +26,28 @@ interface SimulatedItem {
   type: 'EXPENSE' | 'INCOME';
   accountId: string;
   categoryId: string | null;
+  date: number; // timestamp of simulation date
+}
+
+const MONTHS_SPANISH = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
+function fmtSimDate(ms: number): string {
+  const now = new Date();
+  const d = new Date(ms);
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const targetDate = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  
+  if (targetDate === today) return 'Hoy';
+  if (targetDate === today + 86400000) return 'Mañana';
+  if (targetDate === today - 86400000) return 'Ayer';
+  
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const base = `${d.getDate()} ${months[d.getMonth()]}`;
+  return sameYear ? base : `${base} ${d.getFullYear()}`;
 }
 
 export function CalculatorScreen() {
@@ -53,12 +75,18 @@ export function CalculatorScreen() {
   // Modal sheets states
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showRecurringPicker, setShowRecurringPicker] = useState(false);
+  const [showDatePickerSheet, setShowDatePickerSheet] = useState(false);
 
   // New simulated item form states
   const [newItemNote, setNewItemNote] = useState('');
   const [newItemAmount, setNewItemAmount] = useState('');
   const [newItemType, setNewItemType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  
+  // Simulated Date states
+  const [simYear, setSimYear] = useState<number>(() => new Date().getFullYear());
+  const [simMonth, setSimMonth] = useState<number>(() => new Date().getMonth());
+  const [simDay, setSimDay] = useState<number>(() => new Date().getDate());
 
   // Active fixed incomes in recurring rules
   const fixedIncomes = useMemo(() => {
@@ -87,11 +115,15 @@ export function CalculatorScreen() {
 
   const netSimulatedBalance = baseSalaryNum - totalSimExpenses + totalSimIncomes;
 
-  // Open the add modal sheet with default categories
+  // Open the add modal sheet with defaults reset and date set to Today
   function openAddSimulation() {
     setNewItemNote('');
     setNewItemAmount('');
     setNewItemType('EXPENSE');
+    setSimYear(new Date().getFullYear());
+    setSimMonth(new Date().getMonth());
+    setSimDay(new Date().getDate());
+
     const expenseCats = allCategories(state.customCategories).filter(c => c.type === 'EXPENSE');
     setSelectedCategoryId(expenseCats[0]?.id || null);
     setShowAddSheet(true);
@@ -123,6 +155,7 @@ export function CalculatorScreen() {
       type: newItemType,
       accountId: accountId,
       categoryId: selectedCategoryId,
+      date: new Date(simYear, simMonth, simDay).getTime(),
     };
 
     setSimulatedItems(prev => [...prev, newItem]);
@@ -176,7 +209,7 @@ export function CalculatorScreen() {
                 id: 'tx-sim-' + Date.now() + '-' + idx + '-' + Math.random().toString(36).substring(2, 6),
                 type: item.type,
                 amount: item.amount,
-                date: Date.now(),
+                date: item.date, // Use the simulated date chosen by the user
                 accountId: item.accountId,
                 categoryId: item.categoryId,
                 note: item.note,
@@ -433,7 +466,7 @@ export function CalculatorScreen() {
                           fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted,
                           marginTop: 2,
                         }} numberOfLines={1}>
-                          {accName} • {catName}
+                          {accName} • {catName} • {fmtSimDate(item.date)}
                         </Text>
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -499,7 +532,7 @@ export function CalculatorScreen() {
       </ScrollView>
 
       {/* Keyboard avoiding sheet to ADD simulated item */}
-      <Sheet open={showAddSheet} onClose={() => setShowAddSheet(false)} height="65%">
+      <Sheet open={showAddSheet} onClose={() => setShowAddSheet(false)} height="68%">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
@@ -618,6 +651,31 @@ export function CalculatorScreen() {
                 marginBottom: 16,
               }}
             />
+
+            {/* Date Selector Row */}
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+              letterSpacing: 0.3, marginBottom: 6,
+            }}>FECHA DEL MOVIMIENTO</Text>
+            <Pressable
+              onPress={() => setShowDatePickerSheet(true)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingVertical: 12,
+                borderBottomWidth: 1.5,
+                borderBottomColor: t.indigo,
+                marginBottom: 20,
+              }}
+            >
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+              }}>
+                {`${simDay} de ${MONTHS_SPANISH[simMonth]} de ${simYear}`}
+              </Text>
+              <Icon name="calendar" size={18} color={t.indigo} />
+            </Pressable>
 
             {/* Inline Category Selector */}
             <Text style={{
@@ -755,6 +813,141 @@ export function CalculatorScreen() {
           )}
         </View>
       </Sheet>
+
+      {/* Date picker sub-sheet modal */}
+      <Sheet open={showDatePickerSheet} onClose={() => setShowDatePickerSheet(false)} height="75%">
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, flex: 1 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 12,
+          }}>Fecha del movimiento</Text>
+
+          {/* Year selector */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 8, marginTop: 4,
+          }}>AÑO</Text>
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 14 }}>
+            {[2026, 2027, 2028, 2029].map(y => {
+              const selected = simYear === y;
+              return (
+                <Pressable
+                  key={y}
+                  onPress={() => setSimYear(y)}
+                  style={{
+                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                    backgroundColor: selected ? t.indigo : t.surfaceAlt,
+                    borderWidth: 1, borderColor: selected ? t.indigo : t.border,
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                    color: selected ? '#fff' : t.text,
+                  }}>{y}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Month selector */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 8,
+          }}>MES</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+            {MONTHS_SPANISH.map((m, idx) => {
+              const selected = simMonth === idx;
+              return (
+                <Pressable
+                  key={m}
+                  onPress={() => setNewMonthAndFixDay(idx)}
+                  style={{
+                    width: '23%', paddingVertical: 8, borderRadius: 10,
+                    alignItems: 'center',
+                    backgroundColor: selected ? t.indigo : t.surfaceAlt,
+                    borderWidth: 1, borderColor: selected ? t.indigo : t.border,
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                    color: selected ? '#fff' : t.text,
+                  }}>{m.substring(0, 3)}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Day selector */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 8,
+          }}>DÍA</Text>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {Array.from(
+                { length: new Date(simYear, simMonth + 1, 0).getDate() },
+                (_, i) => i + 1
+              ).map(d => {
+                const selected = simDay === d;
+                return (
+                  <View key={d} style={{ width: '14.2857%', padding: 4 }}>
+                    <Pressable
+                      onPress={() => setSimDay(d)}
+                      style={{
+                        height: 40, borderRadius: 10,
+                        alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: selected ? t.indigo : t.surfaceAlt,
+                        borderWidth: 1, borderColor: selected ? t.indigo : t.border,
+                      }}
+                    >
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13,
+                        color: selected ? '#fff' : t.text,
+                        fontVariant: ['tabular-nums'],
+                      }}>{d}</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          <Pressable
+            onPress={() => {
+              const maxDays = new Date(simYear, simMonth + 1, 0).getDate();
+              if (simDay > maxDays) {
+                setSimDay(maxDays);
+              }
+              setShowDatePickerSheet(false);
+            }}
+            style={({ pressed }) => [{
+              marginTop: 14,
+              paddingVertical: 14,
+              borderRadius: 16,
+              backgroundColor: t.indigo,
+              alignItems: 'center',
+              opacity: pressed ? 0.85 : 1,
+            }]}
+          >
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold',
+              fontSize: 14,
+              color: '#fff',
+            }}>
+              Confirmar Fecha
+            </Text>
+          </Pressable>
+        </View>
+      </Sheet>
     </View>
   );
+
+  // Helper to change month and cap day if it exceeds the number of days in that month
+  function setNewMonthAndFixDay(idx: number) {
+    setSimMonth(idx);
+    const maxDays = new Date(simYear, idx + 1, 0).getDate();
+    if (simDay > maxDays) {
+      setSimDay(maxDays);
+    }
+  }
 }

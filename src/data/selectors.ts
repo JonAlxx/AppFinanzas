@@ -22,6 +22,16 @@ export function isLiquidAccount(acc: Account): boolean {
   return isDebitAccount(acc) || isCashAccount(acc);
 }
 
+export function getCardTypeForAccount(acc: Account): string {
+  if (acc.type === 'BANK' || acc.type === 'DEBIT_CARD') return 'debit';
+  if (acc.type === 'CASH') return 'cash';
+  if (acc.type === 'CREDIT_CARD') return 'credit';
+  if (acc.type === 'SAVINGS') return 'savings';
+  if (acc.type === 'INVESTMENT') return 'investment';
+  if (acc.type === 'DIGITAL_WALLET') return 'vouchers';
+  return 'debit';
+}
+
 export function computeAccountBalance(account: Account, txs: Transaction[]): number {
   let bal = account.initial;
   for (const t of txs) {

@@ -107,6 +107,7 @@ export const BRANDS: Record<string, Brand> = {
   paypal:      { bg: '#003087', text: '#FFFFFF', short: 'PayPal', name: 'PayPal' },
   wise:        { bg: '#9FE870', text: '#163300', short: 'Wise', name: 'Wise' },
   revolut:     { bg: '#191C1F', text: '#FFFFFF', short: 'Revolut', name: 'Revolut' },
+  sivale:      { bg: '#E30613', text: '#FFFFFF', short: 'Sí Vale', name: 'Up Sí Vale' },
   cash:        { bg: '#10B981', text: '#FFFFFF', short: 'Efectivo', name: 'Efectivo' },
 };
 
@@ -184,6 +185,6 @@ export function labelType(type: Account['type']): string {
     CREDIT_CARD: 'Crédito',
     SAVINGS: 'Ahorro',
     INVESTMENT: 'Inversión',
-    DIGITAL_WALLET: 'Digital',
+    DIGITAL_WALLET: 'Vales de despensa',
   } as Record<string, string>)[type] || type;
 }

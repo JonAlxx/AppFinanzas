@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
-  Alert, Animated, Pressable, ScrollView, Text, TextInput, View,
+  Alert, Animated, Pressable, ScrollView, Text, TextInput, View, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -214,7 +214,11 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
         large={false}
       />
 
-      <TextInput
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <TextInput
         ref={amountInputRef}
         value={amount === '0' ? '' : amount}
         onChangeText={(v) => {
@@ -274,7 +278,7 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -535,6 +539,7 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
           </View>
         </Card>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <Sheet open={showCatSheet} onClose={() => setShowCatSheet(false)} height="80%">
         <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 }}>

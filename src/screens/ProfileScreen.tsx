@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useAppState } from '../state/AppStateContext';
@@ -44,12 +44,16 @@ export function ProfileScreen() {
         title="Mi perfil"
         rightIcon={null}
       />
-      <ScrollView
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
       >
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         {/* Preview Avatar */}
         <View style={{ alignItems: 'center', paddingVertical: 24 }}>
           <LinearGradient
@@ -176,6 +180,7 @@ export function ProfileScreen() {
           )}
         </Pressable>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

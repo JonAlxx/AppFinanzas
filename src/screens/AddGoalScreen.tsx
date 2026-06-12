@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, TextInput, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -123,9 +123,13 @@ export function AddGoalScreen({ editingId }: AddGoalScreenProps) {
         onRight={editing ? confirmDelete : undefined}
         large={false}
       />
-      <ScrollView
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+      >
+        <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -490,6 +494,7 @@ export function AddGoalScreen({ editingId }: AddGoalScreenProps) {
           </Pressable>
         </Card>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

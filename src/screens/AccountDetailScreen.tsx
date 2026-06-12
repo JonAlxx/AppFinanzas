@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { labelType } from '../data/catalog';
 import { fmtMXN } from '../data/format';
-import { computeAccountBalance } from '../data/selectors';
+import { computeAccountBalance, getCardTypeForAccount } from '../data/selectors';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -26,6 +26,7 @@ export interface AccountDetailScreenProps {
 export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
   const { t } = useTheme();
   const { state, dispatch } = useAppState();
+  const { balanceHidden, hiddenCards = [] } = state;
   const { navigate, back } = useNavigation();
 
   const acc = state.accounts.find(a => a.id === accountId);
@@ -84,6 +85,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
   }
 
   const balance = computeAccountBalance(acc, state.transactions);
+  const isHidden = balanceHidden || hiddenCards.includes(getCardTypeForAccount(acc));
 
   return (
     <View style={{ flex: 1 }}>
@@ -100,7 +102,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
         showsVerticalScrollIndicator={false}
       >
         {acc.brand ? (
-          <BankCard acc={acc} balance={balance} />
+          <BankCard acc={acc} balance={balance} isHidden={isHidden} />
         ) : (
           <View style={{
             borderRadius: 22, overflow: 'hidden',
@@ -132,7 +134,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 28, color: '#fff',
                 letterSpacing: -0.8, marginTop: 2,
                 fontVariant: ['tabular-nums'],
-              }}>{acc.type === 'CREDIT_CARD' && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (acc.type === 'CREDIT_CARD' ? fmtMXN(Math.abs(balance)) : fmtMXN(balance))}</Text>
+              }}>{isHidden ? '••••' : (acc.type === 'CREDIT_CARD' && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (acc.type === 'CREDIT_CARD' ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)))}</Text>
             </LinearGradient>
           </View>
         )}
@@ -205,7 +207,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                     <Text numberOfLines={1} style={{
                       fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text,
                       marginTop: 4, fontVariant: ['tabular-nums'],
-                    }}>{fmtMXN(acc.limit)}</Text>
+                    }}>{isHidden ? '••••' : fmtMXN(acc.limit)}</Text>
                   </View>
                   
                   <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
@@ -218,7 +220,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                     <Text numberOfLines={1} style={{
                       fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.rose,
                       marginTop: 4, fontVariant: ['tabular-nums'],
-                    }}>{fmtMXN(Math.abs(balance))}</Text>
+                    }}>{isHidden ? '••••' : fmtMXN(Math.abs(balance))}</Text>
                   </View>
 
                   <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
@@ -231,7 +233,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                     <Text numberOfLines={1} style={{
                       fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.green,
                       marginTop: 4, fontVariant: ['tabular-nums'],
-                    }}>{fmtMXN(acc.limit - Math.abs(balance))}</Text>
+                    }}>{isHidden ? '••••' : fmtMXN(acc.limit - Math.abs(balance))}</Text>
                   </View>
                 </View>
               </>
@@ -260,7 +262,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 17, color: t.text,
               marginTop: 4, letterSpacing: -0.3,
               fontVariant: ['tabular-nums'],
-            }}>{fmtMXN(stats.income)}</Text>
+            }}>{isHidden ? '••••' : fmtMXN(stats.income)}</Text>
           </Card>
           <Card padding={14} style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -273,7 +275,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 17, color: t.text,
               marginTop: 4, letterSpacing: -0.3,
               fontVariant: ['tabular-nums'],
-            }}>{fmtMXN(stats.expense)}</Text>
+            }}>{isHidden ? '••••' : fmtMXN(stats.expense)}</Text>
           </Card>
         </View>
 

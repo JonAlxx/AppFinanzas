@@ -24,6 +24,7 @@ export type Action =
   | { type: 'TOGGLE_THEME' }
   | { type: 'SET_THEME'; dark: boolean }
   | { type: 'TOGGLE_HIDE' }
+  | { type: 'TOGGLE_CARD_VISIBILITY'; cardType: string }
   | { type: 'MARK_ALL_READ' }
   | { type: 'UPDATE_PROFILE'; profile: UserProfile }
   | { type: 'SET_CARD_ORDER'; order: string[] }
@@ -50,6 +51,7 @@ export function initialState(dark = false): AppState {
       phone: '',
     },
     cardOrder: ['debit', 'cash', 'credit'],
+    hiddenCards: [],
   };
 }
 
@@ -168,6 +170,13 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, dark: action.dark };
     case 'TOGGLE_HIDE':
       return { ...state, balanceHidden: !state.balanceHidden };
+    case 'TOGGLE_CARD_VISIBILITY': {
+      const hiddenCards = state.hiddenCards || [];
+      const updated = hiddenCards.includes(action.cardType)
+        ? hiddenCards.filter(c => c !== action.cardType)
+        : [...hiddenCards, action.cardType];
+      return { ...state, hiddenCards: updated };
+    }
     case 'MARK_ALL_READ':
       return { ...state, notifications: state.notifications.map(n => ({ ...n, read: true })) };
     case 'UPDATE_PROFILE':
@@ -195,6 +204,7 @@ export function reducer(state: AppState, action: Action): AppState {
         balanceHidden: action.state.balanceHidden ?? false,
         profile: action.state.profile ?? state.profile,
         cardOrder: action.state.cardOrder ?? ['debit', 'cash', 'credit'],
+        hiddenCards: action.state.hiddenCards ?? [],
       };
     }
     case 'RESET':

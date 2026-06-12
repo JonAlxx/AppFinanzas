@@ -123,6 +123,7 @@ export interface AppState {
   balanceHidden: boolean;
   profile?: UserProfile;
   cardOrder?: string[];
+  hiddenCards?: string[];
 }
 
 export interface MonthPoint {

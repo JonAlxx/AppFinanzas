@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { CATEGORY_COLOR_OPTIONS, CATEGORY_ICON_OPTIONS, isCustomCategory } from '../data/catalog';
@@ -68,9 +68,13 @@ export function AddCategoryScreen({ editingId }: AddCategoryScreenProps) {
         rightIcon={null}
         large={false}
       />
-      <ScrollView
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+      >
+        <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -224,6 +228,7 @@ export function AddCategoryScreen({ editingId }: AddCategoryScreenProps) {
           )}
         </Pressable>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

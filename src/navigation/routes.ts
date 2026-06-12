@@ -6,7 +6,7 @@ export type Route =
   | { screen: 'transactions' }
   | { screen: 'add-transaction'; type?: TransactionType; id?: string }
   | { screen: 'transaction-detail'; id: string }
-  | { screen: 'accounts'; filter?: 'debit' | 'cash' | 'credit' | 'liquid' }
+  | { screen: 'accounts'; filter?: 'debit' | 'cash' | 'credit' | 'liquid' | 'savings' | 'investment' | 'vouchers' }
   | { screen: 'add-account'; id?: string }
   | { screen: 'account-detail'; id: string }
   | { screen: 'budgets' }
