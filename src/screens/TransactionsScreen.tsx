@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { FlatList, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { catById } from '../data/catalog';
 import { dayLabel } from '../data/format';
@@ -95,21 +95,11 @@ export function TransactionsScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {grouped.length === 0 ? (
-          <EmptyState
-            icon="list"
-            title="Sin movimientos"
-            message="Cuando agregues ingresos o gastos los verás aquí."
-            action="Agregar movimiento"
-            onAction={() => navigate('add-transaction')}
-          />
-        ) : grouped.map((day, i) => (
-          <View key={i} style={{ marginBottom: 14 }}>
+      <FlatList
+        data={grouped}
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item: day }) => (
+          <View style={{ marginBottom: 14 }}>
             <Text style={{
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 11,
               color: t.textMuted, letterSpacing: 0.6,
@@ -129,8 +119,20 @@ export function TransactionsScreen() {
               ))}
             </Card>
           </View>
-        ))}
-      </ScrollView>
+        )}
+        ListEmptyComponent={
+          <EmptyState
+            icon="list"
+            title="Sin movimientos"
+            message="Cuando agregues ingresos o gastos los verás aquí."
+            action="Agregar movimiento"
+            onAction={() => navigate('add-transaction')}
+          />
+        }
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
