@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { BackHandler } from 'react-native';
 import { Route, BOTTOM_TABS } from './routes';
 
 export interface NavigationContextValue {
@@ -34,8 +35,35 @@ export function NavigationProvider({
   };
 
   const back = () => {
-    setHistory(prev => prev.length > 1 ? prev.slice(0, -1) : prev);
+    setHistory(prev => {
+      if (prev.length > 1) {
+        return prev.slice(0, -1);
+      }
+      const current = prev[0];
+      if (current && current.screen !== 'dashboard') {
+        return [{ screen: 'dashboard' } as Route];
+      }
+      return prev;
+    });
   };
+
+  // Handle hardware back button in Android
+  useEffect(() => {
+    const handleBack = () => {
+      if (history.length > 1) {
+        back();
+        return true;
+      }
+      if (route && route.screen !== 'dashboard') {
+        back();
+        return true;
+      }
+      return false; // Let the default system behavior take over (exit app)
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', handleBack);
+    return () => subscription.remove();
+  }, [history, route]);
 
   return (
     <NavigationContext.Provider value={{ route, navigate, replace, navigateTab, back }}>

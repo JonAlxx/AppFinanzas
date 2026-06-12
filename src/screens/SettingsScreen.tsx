@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { DEFAULT_CATEGORIES } from '../data/catalog';
 import { exportAppStateJSON, exportTransactionsCSV } from '../data/export';
