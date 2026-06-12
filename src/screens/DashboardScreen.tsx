@@ -8,6 +8,7 @@ import { Recurring } from '../data/types';
 import {
   computeAccountBalance, computeBalanceSummary, computeTotalsForAccounts, dailySeries,
   isCreditAccount, isDebitAccount, isCashAccount, spentByCategory, upcomingPayments,
+  getCardTypeForAccount,
 } from '../data/selectors';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -90,20 +91,56 @@ export function DashboardScreen() {
 
   const [showOrderSheet, setShowOrderSheet] = useState(false);
   const [selectedUpcoming, setSelectedUpcoming] = useState<{ rule: Recurring; date: number } | null>(null);
+  const [detailSection, setDetailSection] = useState<string | null>(null);
 
-  const { accounts, transactions, budgets, recurring, notifications, balanceHidden } = state;
+  const { accounts, transactions, budgets, recurring, notifications, balanceHidden, hiddenCards = [] } = state;
   const summary = useMemo(() => computeBalanceSummary(accounts, transactions), [accounts, transactions]);
-  const debitAccounts = useMemo(() => accounts.filter(isDebitAccount), [accounts]);
+  const debitAccounts = useMemo(() => accounts.filter(a => a.type === 'BANK' || a.type === 'DEBIT_CARD'), [accounts]);
   const cashAccounts = useMemo(() => accounts.filter(isCashAccount), [accounts]);
   const creditAccounts = useMemo(() => accounts.filter(isCreditAccount), [accounts]);
+  const savingsAccounts = useMemo(() => accounts.filter(a => a.type === 'SAVINGS'), [accounts]);
+  const investmentAccounts = useMemo(() => accounts.filter(a => a.type === 'INVESTMENT'), [accounts]);
+  const vouchersAccounts = useMemo(() => accounts.filter(a => a.type === 'DIGITAL_WALLET'), [accounts]);
   
+  const debitBalance = useMemo(() => {
+    return debitAccounts.reduce((sum, acc) => sum + computeAccountBalance(acc, transactions), 0);
+  }, [debitAccounts, transactions]);
+  
+  const cashBalance = useMemo(() => {
+    return cashAccounts.reduce((sum, acc) => sum + computeAccountBalance(acc, transactions), 0);
+  }, [cashAccounts, transactions]);
+
+  const savingsBalance = useMemo(() => {
+    return savingsAccounts.reduce((sum, acc) => sum + computeAccountBalance(acc, transactions), 0);
+  }, [savingsAccounts, transactions]);
+
+  const investmentBalance = useMemo(() => {
+    return investmentAccounts.reduce((sum, acc) => sum + computeAccountBalance(acc, transactions), 0);
+  }, [investmentAccounts, transactions]);
+
+  const vouchersBalance = useMemo(() => {
+    return vouchersAccounts.reduce((sum, acc) => sum + computeAccountBalance(acc, transactions), 0);
+  }, [vouchersAccounts, transactions]);
+
   const debitTotals = useMemo(
-    () => computeTotalsForAccounts(summary.debit, debitAccounts.map(a => a.id), transactions, 30),
-    [summary.debit, debitAccounts, transactions]
+    () => computeTotalsForAccounts(debitBalance, debitAccounts.map(a => a.id), transactions, 30),
+    [debitBalance, debitAccounts, transactions]
   );
   const cashTotals = useMemo(
-    () => computeTotalsForAccounts(summary.cash, cashAccounts.map(a => a.id), transactions, 30),
-    [summary.cash, cashAccounts, transactions]
+    () => computeTotalsForAccounts(cashBalance, cashAccounts.map(a => a.id), transactions, 30),
+    [cashBalance, cashAccounts, transactions]
+  );
+  const savingsTotals = useMemo(
+    () => computeTotalsForAccounts(savingsBalance, savingsAccounts.map(a => a.id), transactions, 30),
+    [savingsBalance, savingsAccounts, transactions]
+  );
+  const investmentTotals = useMemo(
+    () => computeTotalsForAccounts(investmentBalance, investmentAccounts.map(a => a.id), transactions, 30),
+    [investmentBalance, investmentAccounts, transactions]
+  );
+  const vouchersTotals = useMemo(
+    () => computeTotalsForAccounts(vouchersBalance, vouchersAccounts.map(a => a.id), transactions, 30),
+    [vouchersBalance, vouchersAccounts, transactions]
   );
   const creditStats = useMemo(() => {
     let totalLimit = 0;
@@ -155,9 +192,87 @@ export function DashboardScreen() {
 
   const seriesMax = Math.max(...series.map(x => x.amount), 1);
   const seriesTotal = series.reduce((s, d) => s + d.amount, 0);
-  const branded = accounts.filter(a => a.brand || a.type === 'DEBIT_CARD' || a.type === 'CREDIT_CARD');
+  const branded = accounts.filter(a => a.brand || a.type === 'DEBIT_CARD' || a.type === 'CREDIT_CARD' || a.type === 'DIGITAL_WALLET');
 
-  const order = state.cardOrder || ['debit', 'cash', 'credit'];
+  const activeSection = detailSection;
+
+  const activeAccounts = useMemo(() => {
+    if (!activeSection) return [];
+    switch (activeSection) {
+      case 'debit':
+        return debitAccounts;
+      case 'cash':
+        return cashAccounts;
+      case 'credit':
+        return creditAccounts;
+      case 'savings':
+        return savingsAccounts;
+      case 'investment':
+        return investmentAccounts;
+      case 'vouchers':
+        return vouchersAccounts;
+      default:
+        return [];
+    }
+  }, [activeSection, debitAccounts, cashAccounts, creditAccounts, savingsAccounts, investmentAccounts, vouchersAccounts]);
+
+  const activeTotals = useMemo(() => {
+    if (!activeSection) return null;
+    switch (activeSection) {
+      case 'debit':
+        return debitTotals;
+      case 'cash':
+        return cashTotals;
+      case 'savings':
+        return savingsTotals;
+      case 'investment':
+        return investmentTotals;
+      case 'vouchers':
+        return vouchersTotals;
+      default:
+        return null;
+    }
+  }, [activeSection, debitTotals, cashTotals, savingsTotals, investmentTotals, vouchersTotals]);
+
+  const activeAccountIds = useMemo(() => activeAccounts.map(a => a.id), [activeAccounts]);
+
+  const sectionTxs = useMemo(() => {
+    if (!activeSection) return [];
+    return transactions
+      .filter(tx => activeAccountIds.includes(tx.accountId))
+      .sort((a, b) => b.date - a.date)
+      .slice(0, 4);
+  }, [transactions, activeAccountIds, activeSection]);
+
+  const isActiveSectionHidden = useMemo(() => {
+    if (!activeSection) return false;
+    return balanceHidden || hiddenCards.includes(activeSection);
+  }, [balanceHidden, hiddenCards, activeSection]);
+
+  const order = useMemo(() => {
+    const mandatory = ['debit', 'cash', 'credit'];
+    
+    const dynamic: string[] = [];
+    if (state.accounts.some(a => a.type === 'SAVINGS')) dynamic.push('savings');
+    if (state.accounts.some(a => a.type === 'INVESTMENT')) dynamic.push('investment');
+    if (state.accounts.some(a => a.type === 'DIGITAL_WALLET')) dynamic.push('vouchers');
+
+    const activeTypes = [...mandatory, ...dynamic];
+    
+    const savedOrder = state.cardOrder || [];
+    const orderedActive = savedOrder.filter(item => activeTypes.includes(item));
+    
+    for (const type of activeTypes) {
+      if (!orderedActive.includes(type)) {
+        orderedActive.push(type);
+      }
+    }
+    
+    const finalMandatory = orderedActive.filter(item => mandatory.includes(item));
+    const finalDynamic = orderedActive.filter(item => dynamic.includes(item));
+    
+    return [...finalMandatory, ...finalDynamic];
+  }, [state.accounts, state.cardOrder]);
 
   function moveCard(index: number, direction: 'up' | 'down') {
     const nextOrder = [...order];
@@ -170,15 +285,17 @@ export function DashboardScreen() {
   }
 
   const renderCard = (cardType: string) => {
+    const isHidden = balanceHidden || hiddenCards.includes(cardType);
     switch (cardType) {
       case 'debit':
         return (
           <Pressable
             key="debit"
+            onPress={() => setDetailSection('debit')}
             onLongPress={() => setShowOrderSheet(true)}
             delayLongPress={300}
             style={({ pressed }) => [{
-              width: 280, borderRadius: 28, overflow: 'hidden',
+              width: 280, height: 255, borderRadius: 28, overflow: 'hidden',
               shadowColor: t.indigo, shadowOffset: { width: 0, height: 12 },
               shadowOpacity: 0.5, shadowRadius: 30, elevation: 12,
               opacity: pressed ? 0.95 : 1,
@@ -187,7 +304,7 @@ export function DashboardScreen() {
             <LinearGradient
               colors={[t.indigo, t.violet]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={{ padding: 22, position: 'relative', overflow: 'hidden' }}
+              style={{ padding: 22, position: 'relative', overflow: 'hidden', flex: 1 }}
             >
               <View style={{
                 position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: 80,
@@ -198,33 +315,45 @@ export function DashboardScreen() {
                 backgroundColor: 'rgba(255,255,255,0.06)',
               }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{
+                <Text numberOfLines={1} style={{
                   fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: '#C7D2FE',
-                  letterSpacing: 0.3,
+                  letterSpacing: 0.3, flex: 1, marginRight: 8,
                 }}>DÉBITO Y CUENTAS</Text>
-                <View style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 6,
-                  paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
-                  backgroundColor: 'rgba(255,255,255,0.18)',
-                }}>
-                  <Icon name="trending" size={11} color="#fff" />
-                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <Pressable
+                    onPress={() => dispatch({ type: 'TOGGLE_CARD_VISIBILITY', cardType: 'debit' })}
+                    style={{
+                      width: 24, height: 24, borderRadius: 12,
+                      backgroundColor: 'rgba(255,255,255,0.16)',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name={hiddenCards.includes('debit') ? 'eye-off' : 'eye'} size={12} color="#fff" />
+                  </Pressable>
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                  }}>
+                    <Icon name="trending" size={11} color="#fff" />
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                  </View>
                 </View>
               </View>
               <Text style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
                 letterSpacing: -1.5, marginTop: 8,
                 fontVariant: ['tabular-nums'],
-              }}>{balanceHidden ? '••••••••' : fmtMXN(debitTotals.total)}</Text>
+              }}>{isHidden ? '••••' : fmtMXN(debitTotals.total)}</Text>
               <View style={{
                 marginTop: 18, padding: 14, borderRadius: 18,
                 backgroundColor: 'rgba(255,255,255,0.10)',
                 borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
                 flexDirection: 'row', gap: 12, alignItems: 'center',
               }}>
-                <MiniStat icon="arrow-down" iconColor="#6EE7B7" label="Ingresos" value={balanceHidden ? '••••' : fmtMXN(debitTotals.income)} />
+                <MiniStat icon="arrow-down" iconColor="#6EE7B7" label="Ingresos" value={isHidden ? '••••' : fmtMXN(debitTotals.income)} />
                 <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'stretch' }} />
-                <MiniStat icon="arrow-up" iconColor="#FDA4AF" label="Gastos" value={balanceHidden ? '••••' : fmtMXN(debitTotals.expense)} />
+                <MiniStat icon="arrow-up" iconColor="#FDA4AF" label="Gastos" value={isHidden ? '••••' : fmtMXN(debitTotals.expense)} />
               </View>
               <Pressable
                 onPress={() => navigate({ screen: 'accounts', filter: 'debit' })}
@@ -247,10 +376,11 @@ export function DashboardScreen() {
         return (
           <Pressable
             key="cash"
+            onPress={() => setDetailSection('cash')}
             onLongPress={() => setShowOrderSheet(true)}
             delayLongPress={300}
             style={({ pressed }) => [{
-              width: 280, borderRadius: 28, overflow: 'hidden',
+              width: 280, height: 255, borderRadius: 28, overflow: 'hidden',
               shadowColor: t.green, shadowOffset: { width: 0, height: 12 },
               shadowOpacity: 0.35, shadowRadius: 30, elevation: 12,
               opacity: pressed ? 0.95 : 1,
@@ -259,7 +389,7 @@ export function DashboardScreen() {
             <LinearGradient
               colors={[t.green, t.teal]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={{ padding: 22, position: 'relative', overflow: 'hidden' }}
+              style={{ padding: 22, position: 'relative', overflow: 'hidden', flex: 1 }}
             >
               <View style={{
                 position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: 80,
@@ -270,33 +400,45 @@ export function DashboardScreen() {
                 backgroundColor: 'rgba(255,255,255,0.06)',
               }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{
+                <Text numberOfLines={1} style={{
                   fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: '#CCFBF1',
-                  letterSpacing: 0.3,
+                  letterSpacing: 0.3, flex: 1, marginRight: 8,
                 }}>EFECTIVO</Text>
-                <View style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 6,
-                  paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
-                  backgroundColor: 'rgba(255,255,255,0.18)',
-                }}>
-                  <Icon name="cash" size={11} color="#fff" />
-                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <Pressable
+                    onPress={() => dispatch({ type: 'TOGGLE_CARD_VISIBILITY', cardType: 'cash' })}
+                    style={{
+                      width: 24, height: 24, borderRadius: 12,
+                      backgroundColor: 'rgba(255,255,255,0.16)',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name={hiddenCards.includes('cash') ? 'eye-off' : 'eye'} size={12} color="#fff" />
+                  </Pressable>
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                  }}>
+                    <Icon name="cash" size={11} color="#fff" />
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                  </View>
                 </View>
               </View>
               <Text style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
                 letterSpacing: -1.5, marginTop: 8,
                 fontVariant: ['tabular-nums'],
-              }}>{balanceHidden ? '••••••••' : fmtMXN(cashTotals.total)}</Text>
+              }}>{isHidden ? '••••' : fmtMXN(cashTotals.total)}</Text>
               <View style={{
                 marginTop: 18, padding: 14, borderRadius: 18,
                 backgroundColor: 'rgba(255,255,255,0.10)',
                 borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
                 flexDirection: 'row', gap: 12, alignItems: 'center',
               }}>
-                <MiniStat icon="arrow-down" iconColor="#6EE7B7" label="Ingresos" value={balanceHidden ? '••••' : fmtMXN(cashTotals.income)} />
+                <MiniStat icon="arrow-down" iconColor="#6EE7B7" label="Ingresos" value={isHidden ? '••••' : fmtMXN(cashTotals.income)} />
                 <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'stretch' }} />
-                <MiniStat icon="arrow-up" iconColor="#FDA4AF" label="Gastos" value={balanceHidden ? '••••' : fmtMXN(cashTotals.expense)} />
+                <MiniStat icon="arrow-up" iconColor="#FDA4AF" label="Gastos" value={isHidden ? '••••' : fmtMXN(cashTotals.expense)} />
               </View>
               <Pressable
                 onPress={() => navigate({ screen: 'accounts', filter: 'cash' })}
@@ -319,10 +461,11 @@ export function DashboardScreen() {
         return (
           <Pressable
             key="credit"
+            onPress={() => setDetailSection('credit')}
             onLongPress={() => setShowOrderSheet(true)}
             delayLongPress={300}
             style={({ pressed }) => [{
-              width: 280, borderRadius: 28, overflow: 'hidden',
+              width: 280, height: 255, borderRadius: 28, overflow: 'hidden',
               shadowColor: t.blue, shadowOffset: { width: 0, height: 12 },
               shadowOpacity: 0.5, shadowRadius: 30, elevation: 12,
               opacity: pressed ? 0.95 : 1,
@@ -331,7 +474,7 @@ export function DashboardScreen() {
             <LinearGradient
               colors={['#0EA5E9', t.blue]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={{ padding: 22, position: 'relative', overflow: 'hidden' }}
+              style={{ padding: 22, position: 'relative', overflow: 'hidden', flex: 1 }}
             >
               <View style={{
                 position: 'absolute', top: -50, right: -48, width: 150, height: 150, borderRadius: 75,
@@ -342,33 +485,45 @@ export function DashboardScreen() {
                 backgroundColor: 'rgba(255,255,255,0.07)',
               }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{
+                <Text numberOfLines={1} style={{
                   fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: '#DBEAFE',
-                  letterSpacing: 0.3,
+                  letterSpacing: 0.3, flex: 1, marginRight: 8,
                 }}>TARJETAS DE CRÉDITO</Text>
-                <View style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 6,
-                  paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
-                  backgroundColor: 'rgba(255,255,255,0.18)',
-                }}>
-                  <Icon name="card" size={11} color="#fff" />
-                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <Pressable
+                    onPress={() => dispatch({ type: 'TOGGLE_CARD_VISIBILITY', cardType: 'credit' })}
+                    style={{
+                      width: 24, height: 24, borderRadius: 12,
+                      backgroundColor: 'rgba(255,255,255,0.16)',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name={hiddenCards.includes('credit') ? 'eye-off' : 'eye'} size={12} color="#fff" />
+                  </Pressable>
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                  }}>
+                    <Icon name="card" size={11} color="#fff" />
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                  </View>
                 </View>
               </View>
               <Text style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
                 letterSpacing: -1.5, marginTop: 8,
                 fontVariant: ['tabular-nums'],
-              }}>{balanceHidden ? '••••••••' : fmtMXN(creditStats.available)}</Text>
+              }}>{isHidden ? '••••' : fmtMXN(creditStats.available)}</Text>
               <View style={{
                 marginTop: 18, padding: 14, borderRadius: 18,
                 backgroundColor: 'rgba(255,255,255,0.10)',
                 borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
                 flexDirection: 'row', gap: 12, alignItems: 'center',
               }}>
-                <MiniStat icon="check" iconColor="#6EE7B7" label="Disponible" value={balanceHidden ? '••••' : fmtMXN(creditStats.available)} />
+                <MiniStat icon="check" iconColor="#6EE7B7" label="Disponible" value={isHidden ? '••••' : fmtMXN(creditStats.available)} />
                 <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'stretch' }} />
-                <MiniStat icon="arrow-up" iconColor="#FDA4AF" label="Usado" value={balanceHidden ? '••••' : fmtMXN(creditStats.used)} />
+                <MiniStat icon="arrow-up" iconColor="#FDA4AF" label="Usado" value={isHidden ? '••••' : fmtMXN(creditStats.used)} />
               </View>
               <Pressable
                 onPress={() => navigate({ screen: 'accounts', filter: 'credit' })}
@@ -382,6 +537,261 @@ export function DashboardScreen() {
                 <Icon name="card" size={15} color="#fff" strokeWidth={2.5} />
                 <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: '#fff' }}>
                   Ver tarjetas
+                </Text>
+              </Pressable>
+            </LinearGradient>
+          </Pressable>
+        );
+      case 'savings':
+        return (
+          <Pressable
+            key="savings"
+            onPress={() => setDetailSection('savings')}
+            onLongPress={() => setShowOrderSheet(true)}
+            delayLongPress={300}
+            style={({ pressed }) => [{
+              width: 280, height: 255, borderRadius: 28, overflow: 'hidden',
+              shadowColor: t.rose, shadowOffset: { width: 0, height: 12 },
+              shadowOpacity: 0.5, shadowRadius: 30, elevation: 12,
+              opacity: pressed ? 0.95 : 1,
+            }]}
+          >
+            <LinearGradient
+              colors={[t.rose, '#EC4899']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{ padding: 22, position: 'relative', overflow: 'hidden', flex: 1 }}
+            >
+              <View style={{
+                position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: 80,
+                backgroundColor: 'rgba(255,255,255,0.08)',
+              }} />
+              <View style={{
+                position: 'absolute', bottom: -40, left: -40, width: 120, height: 120, borderRadius: 60,
+                backgroundColor: 'rgba(255,255,255,0.06)',
+              }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text numberOfLines={1} style={{
+                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: '#FFE4E6',
+                  letterSpacing: 0.3, flex: 1, marginRight: 8,
+                }}>AHORRO</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <Pressable
+                    onPress={() => dispatch({ type: 'TOGGLE_CARD_VISIBILITY', cardType: 'savings' })}
+                    style={{
+                      width: 24, height: 24, borderRadius: 12,
+                      backgroundColor: 'rgba(255,255,255,0.16)',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name={hiddenCards.includes('savings') ? 'eye-off' : 'eye'} size={12} color="#fff" />
+                  </Pressable>
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                  }}>
+                    <Icon name="piggy" size={11} color="#fff" />
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
+                letterSpacing: -1.5, marginTop: 8,
+                fontVariant: ['tabular-nums'],
+              }}>{isHidden ? '••••' : fmtMXN(savingsTotals.total)}</Text>
+              <View style={{
+                marginTop: 18, padding: 14, borderRadius: 18,
+                backgroundColor: 'rgba(255,255,255,0.10)',
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+                flexDirection: 'row', gap: 12, alignItems: 'center',
+              }}>
+                <MiniStat icon="arrow-down" iconColor="#6EE7B7" label="Ingresos" value={isHidden ? '••••' : fmtMXN(savingsTotals.income)} />
+                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'stretch' }} />
+                <MiniStat icon="arrow-up" iconColor="#FDA4AF" label="Gastos" value={isHidden ? '••••' : fmtMXN(savingsTotals.expense)} />
+              </View>
+              <Pressable
+                onPress={() => navigate({ screen: 'accounts', filter: 'savings' })}
+                style={({ pressed }) => [{
+                  marginTop: 12, paddingVertical: 10, borderRadius: 14,
+                  backgroundColor: 'rgba(255,255,255,0.16)',
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  opacity: pressed ? 0.75 : 1,
+                }]}
+              >
+                <Icon name="piggy" size={15} color="#fff" strokeWidth={2.5} />
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: '#fff' }}>
+                  Ver ahorros
+                </Text>
+              </Pressable>
+            </LinearGradient>
+          </Pressable>
+        );
+      case 'investment':
+        return (
+          <Pressable
+            key="investment"
+            onPress={() => setDetailSection('investment')}
+            onLongPress={() => setShowOrderSheet(true)}
+            delayLongPress={300}
+            style={({ pressed }) => [{
+              width: 280, height: 255, borderRadius: 28, overflow: 'hidden',
+              shadowColor: t.violet, shadowOffset: { width: 0, height: 12 },
+              shadowOpacity: 0.5, shadowRadius: 30, elevation: 12,
+              opacity: pressed ? 0.95 : 1,
+            }]}
+          >
+            <LinearGradient
+              colors={[t.violet, '#D946EF']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{ padding: 22, position: 'relative', overflow: 'hidden', flex: 1 }}
+            >
+              <View style={{
+                position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: 80,
+                backgroundColor: 'rgba(255,255,255,0.08)',
+              }} />
+              <View style={{
+                position: 'absolute', bottom: -40, left: -40, width: 120, height: 120, borderRadius: 60,
+                backgroundColor: 'rgba(255,255,255,0.06)',
+              }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text numberOfLines={1} style={{
+                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: '#F5F3FF',
+                  letterSpacing: 0.3, flex: 1, marginRight: 8,
+                }}>INVERSIÓN</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <Pressable
+                    onPress={() => dispatch({ type: 'TOGGLE_CARD_VISIBILITY', cardType: 'investment' })}
+                    style={{
+                      width: 24, height: 24, borderRadius: 12,
+                      backgroundColor: 'rgba(255,255,255,0.16)',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name={hiddenCards.includes('investment') ? 'eye-off' : 'eye'} size={12} color="#fff" />
+                  </Pressable>
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                  }}>
+                    <Icon name="trending" size={11} color="#fff" />
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
+                letterSpacing: -1.5, marginTop: 8,
+                fontVariant: ['tabular-nums'],
+              }}>{isHidden ? '••••' : fmtMXN(investmentTotals.total)}</Text>
+              <View style={{
+                marginTop: 18, padding: 14, borderRadius: 18,
+                backgroundColor: 'rgba(255,255,255,0.10)',
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+                flexDirection: 'row', gap: 12, alignItems: 'center',
+              }}>
+                <MiniStat icon="arrow-down" iconColor="#6EE7B7" label="Ingresos" value={isHidden ? '••••' : fmtMXN(investmentTotals.income)} />
+                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'stretch' }} />
+                <MiniStat icon="arrow-up" iconColor="#FDA4AF" label="Gastos" value={isHidden ? '••••' : fmtMXN(investmentTotals.expense)} />
+              </View>
+              <Pressable
+                onPress={() => navigate({ screen: 'accounts', filter: 'investment' })}
+                style={({ pressed }) => [{
+                  marginTop: 12, paddingVertical: 10, borderRadius: 14,
+                  backgroundColor: 'rgba(255,255,255,0.16)',
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  opacity: pressed ? 0.75 : 1,
+                }]}
+              >
+                <Icon name="trending" size={15} color="#fff" strokeWidth={2.5} />
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: '#fff' }}>
+                  Ver inversiones
+                </Text>
+              </Pressable>
+            </LinearGradient>
+          </Pressable>
+        );
+      case 'vouchers':
+        return (
+          <Pressable
+            key="vouchers"
+            onPress={() => setDetailSection('vouchers')}
+            onLongPress={() => setShowOrderSheet(true)}
+            delayLongPress={300}
+            style={({ pressed }) => [{
+              width: 280, height: 255, borderRadius: 28, overflow: 'hidden',
+              shadowColor: '#E30613', shadowOffset: { width: 0, height: 12 },
+              shadowOpacity: 0.5, shadowRadius: 30, elevation: 12,
+              opacity: pressed ? 0.95 : 1,
+            }]}
+          >
+            <LinearGradient
+              colors={['#E30613', '#FF4D4D']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{ padding: 22, position: 'relative', overflow: 'hidden', flex: 1 }}
+            >
+              <View style={{
+                position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: 80,
+                backgroundColor: 'rgba(255,255,255,0.08)',
+              }} />
+              <View style={{
+                position: 'absolute', bottom: -40, left: -40, width: 120, height: 120, borderRadius: 60,
+                backgroundColor: 'rgba(255,255,255,0.06)',
+              }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text numberOfLines={1} style={{
+                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: '#FEE2E2',
+                  letterSpacing: 0.3, flex: 1, marginRight: 8,
+                }}>VALES DE DESPENSA</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <Pressable
+                    onPress={() => dispatch({ type: 'TOGGLE_CARD_VISIBILITY', cardType: 'vouchers' })}
+                    style={{
+                      width: 24, height: 24, borderRadius: 12,
+                      backgroundColor: 'rgba(255,255,255,0.16)',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name={hiddenCards.includes('vouchers') ? 'eye-off' : 'eye'} size={12} color="#fff" />
+                  </Pressable>
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                  }}>
+                    <Icon name="wallet" size={11} color="#fff" />
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
+                letterSpacing: -1.5, marginTop: 8,
+                fontVariant: ['tabular-nums'],
+              }}>{isHidden ? '••••' : fmtMXN(vouchersTotals.total)}</Text>
+              <View style={{
+                marginTop: 18, padding: 14, borderRadius: 18,
+                backgroundColor: 'rgba(255,255,255,0.10)',
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+                flexDirection: 'row', gap: 12, alignItems: 'center',
+              }}>
+                <MiniStat icon="arrow-down" iconColor="#6EE7B7" label="Ingresos" value={isHidden ? '••••' : fmtMXN(vouchersTotals.income)} />
+                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'stretch' }} />
+                <MiniStat icon="arrow-up" iconColor="#FDA4AF" label="Gastos" value={isHidden ? '••••' : fmtMXN(vouchersTotals.expense)} />
+              </View>
+              <Pressable
+                onPress={() => navigate({ screen: 'accounts', filter: 'vouchers' })}
+                style={({ pressed }) => [{
+                  marginTop: 12, paddingVertical: 10, borderRadius: 14,
+                  backgroundColor: 'rgba(255,255,255,0.16)',
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  opacity: pressed ? 0.75 : 1,
+                }]}
+              >
+                <Icon name="wallet" size={15} color="#fff" strokeWidth={2.5} />
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: '#fff' }}>
+                  Ver vales
                 </Text>
               </Pressable>
             </LinearGradient>
@@ -595,22 +1005,30 @@ export function DashboardScreen() {
           </Card>
         </View>
 
-        {/* Bank cards strip */}
+        {/* Tus tarjetas */}
         {branded.length > 0 ? (
           <View style={{ marginTop: 22 }}>
             <SectionTitle title="Tus tarjetas" action="Ver todas" onAction={() => navigate('accounts')} />
             <ScrollView
-              horizontal showsHorizontalScrollIndicator={false}
+              horizontal
+              showsHorizontalScrollIndicator={false}
               style={{ marginHorizontal: -16, marginTop: 10 }}
               contentContainerStyle={{ paddingHorizontal: 16, gap: 12, paddingBottom: 4 }}
-              snapToInterval={252}
+              snapToInterval={232}
               decelerationRate="fast"
             >
               {branded.map(acc => {
                 const bal = computeAccountBalance(acc, state.transactions);
+                const isAccHidden = balanceHidden || hiddenCards.includes(getCardTypeForAccount(acc));
                 return (
-                  <View key={acc.id} style={{ width: 240 }}>
-                    <BankCard acc={acc} balance={bal} onPress={() => navigate({ screen: 'account-detail', id: acc.id })} />
+                  <View key={acc.id} style={{ width: 220 }}>
+                    <BankCard
+                      acc={acc}
+                      balance={bal}
+                      onPress={() => navigate({ screen: 'account-detail', id: acc.id })}
+                      compact
+                      isHidden={isAccHidden}
+                    />
                   </View>
                 );
               })}
@@ -687,6 +1105,8 @@ export function DashboardScreen() {
             ))}
           </View>
         </View>
+
+
       </ScrollView>
 
       {/* Reordering Sheet */}
@@ -721,6 +1141,21 @@ export function DashboardScreen() {
               iconName = 'card';
               badgeColor = t.rose;
               bgSoft = softFor(t, 'rose');
+            } else if (cardType === 'savings') {
+              label = 'Ahorro';
+              iconName = 'piggy';
+              badgeColor = t.rose;
+              bgSoft = softFor(t, 'rose');
+            } else if (cardType === 'investment') {
+              label = 'Inversión';
+              iconName = 'trending';
+              badgeColor = t.violet;
+              bgSoft = softFor(t, 'violet');
+            } else if (cardType === 'vouchers') {
+              label = 'Vales de despensa';
+              iconName = 'wallet';
+              badgeColor = '#E30613';
+              bgSoft = '#FEE2E2';
             }
             
             return (
@@ -933,6 +1368,188 @@ export function DashboardScreen() {
             </View>
           );
         })()}
+      </Sheet>
+
+      {/* Section Details Bottom Sheet */}
+      <Sheet open={detailSection !== null} onClose={() => setDetailSection(null)} height="80%">
+        {activeSection && (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 36 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header / Title */}
+            <SectionTitle
+              title={
+                activeSection === 'debit' ? 'Cuentas de débito'
+                : activeSection === 'cash' ? 'Efectivo'
+                : activeSection === 'credit' ? 'Tarjetas de crédito'
+                : activeSection === 'savings' ? 'Ahorros'
+                : activeSection === 'investment' ? 'Inversiones'
+                : 'Vales de despensa'
+              }
+              action="Ver todas"
+              onAction={() => {
+                setDetailSection(null);
+                navigate({ screen: 'accounts', filter: activeSection as any });
+              }}
+            />
+
+            {/* Sub-stats de la sección */}
+            {activeSection === 'credit' ? (
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                <Card padding={10} style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted }}>LÍMITE</Text>
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text, marginTop: 4 }}>
+                    {isActiveSectionHidden ? '••••' : fmtMXN(creditStats.limit)}
+                  </Text>
+                </Card>
+                <Card padding={10} style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.rose }}>DEUDA</Text>
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.rose, marginTop: 4 }}>
+                    {isActiveSectionHidden ? '••••' : fmtMXN(creditStats.used)}
+                  </Text>
+                </Card>
+                <Card padding={10} style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.green }}>DISPONIBLE</Text>
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.green, marginTop: 4 }}>
+                    {isActiveSectionHidden ? '••••' : fmtMXN(creditStats.available)}
+                  </Text>
+                </Card>
+              </View>
+            ) : activeTotals ? (
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                <Card padding={10} style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Icon name="arrow-down" size={10} color={t.green} />
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted }}>INGRESOS (30D)</Text>
+                  </View>
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text, marginTop: 4 }}>
+                    {isActiveSectionHidden ? '••••' : fmtMXN(activeTotals.income)}
+                  </Text>
+                </Card>
+                <Card padding={10} style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Icon name="arrow-up" size={10} color={t.rose} />
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted }}>GASTOS (30D)</Text>
+                  </View>
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text, marginTop: 4 }}>
+                    {isActiveSectionHidden ? '••••' : fmtMXN(activeTotals.expense)}
+                  </Text>
+                </Card>
+              </View>
+            ) : null}
+
+            {/* Tarjetas / Cuentas en esta sección */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text,
+                marginBottom: 8, letterSpacing: -0.2,
+              }}>Cuentas en esta sección</Text>
+              
+              {activeAccounts.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginHorizontal: -20 }}
+                  contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }}
+                  snapToInterval={232}
+                  decelerationRate="fast"
+                >
+                  {activeAccounts.map(acc => {
+                    const bal = computeAccountBalance(acc, state.transactions);
+                    const isAccHidden = balanceHidden || hiddenCards.includes(getCardTypeForAccount(acc));
+                    const isCardLike = acc.brand || acc.type === 'DEBIT_CARD' || acc.type === 'CREDIT_CARD' || acc.type === 'DIGITAL_WALLET';
+                    
+                    if (isCardLike) {
+                      return (
+                        <View key={acc.id} style={{ width: 220 }}>
+                          <BankCard
+                            acc={acc}
+                            balance={bal}
+                            onPress={() => {
+                              setDetailSection(null);
+                              navigate({ screen: 'account-detail', id: acc.id });
+                            }}
+                            compact
+                            isHidden={isAccHidden}
+                          />
+                        </View>
+                      );
+                    } else {
+                      return (
+                        <Card
+                          key={acc.id}
+                          padding={14}
+                          onPress={() => {
+                            setDetailSection(null);
+                            navigate({ screen: 'account-detail', id: acc.id });
+                          }}
+                          style={{ width: 220, justifyContent: 'center' }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <View style={{
+                              width: 32, height: 32, borderRadius: 10,
+                              backgroundColor: softFor(t, acc.color),
+                              alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              <Icon name={acc.icon} size={16} color={colorFor(t, acc.color)} />
+                            </View>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text }}>
+                                {acc.name}
+                              </Text>
+                              <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text, marginTop: 2 }}>
+                                {isAccHidden ? '••••' : fmtMXN(bal)}
+                              </Text>
+                            </View>
+                          </View>
+                        </Card>
+                      );
+                    }
+                  })}
+                </ScrollView>
+              ) : (
+                <View style={{ padding: 20, backgroundColor: t.surface, borderRadius: 18, alignItems: 'center' }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted }}>
+                    No hay cuentas en esta sección.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Movimientos de la sección */}
+            <View style={{ marginTop: 20 }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text,
+                marginBottom: 8, letterSpacing: -0.2,
+              }}>Movimientos de la sección</Text>
+              <View style={{ backgroundColor: t.surface, borderRadius: 22, padding: 4 }}>
+                {sectionTxs.length === 0 ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Text style={{ color: t.textMuted, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12 }}>
+                      Sin movimientos recientes en esta sección
+                    </Text>
+                  </View>
+                ) : (
+                  sectionTxs.map((tx, i) => (
+                    <TransactionRow
+                      key={tx.id}
+                      tx={tx}
+                      accounts={state.accounts}
+                      customCategories={state.customCategories}
+                      divider={i < sectionTxs.length - 1}
+                      onPress={() => {
+                        setDetailSection(null);
+                        navigate({ screen: 'transaction-detail', id: tx.id });
+                      }}
+                    />
+                  ))
+                )}
+              </View>
+            </View>
+          </ScrollView>
+        )}
       </Sheet>
     </View>
   );
