@@ -3,6 +3,19 @@ import { Pressable, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { Icon } from '../icons/Icon';
 
+let Haptics: any = null;
+try {
+  Haptics = require('expo-haptics');
+} catch (e) {
+  // Fail-safe if expo-haptics is not installed
+}
+
+function triggerLightFeedback() {
+  if (Haptics && Haptics.impactAsync && Haptics.ImpactFeedbackStyle) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  }
+}
+
 export type NumpadKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.' | 'back';
 
 const KEYS: NumpadKey[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back'];
@@ -25,7 +38,10 @@ export function Numpad({ onPress }: NumpadProps) {
       {KEYS.map(k => (
         <View key={k} style={{ width: '33.333%', padding: 3 }}>
           <Pressable
-            onPress={() => onPress(k)}
+            onPress={() => {
+              triggerLightFeedback();
+              onPress(k);
+            }}
             style={({ pressed }) => [{
               height: 46, borderRadius: 14,
               alignItems: 'center', justifyContent: 'center',

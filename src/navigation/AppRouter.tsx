@@ -25,6 +25,7 @@ import { AddCategoryScreen } from '../screens/AddCategoryScreen';
 import { HelpScreen } from '../screens/HelpScreen';
 import { SecurityScreen } from '../screens/SecurityScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { NotificationSettingsScreen } from '../screens/NotificationSettingsScreen';
 import { Placeholder } from '../screens/Placeholder';
 
 export function AppRouter() {
@@ -110,6 +111,9 @@ export function AppRouter() {
       break;
     case 'profile':
       screen = <ProfileScreen />;
+      break;
+    case 'notification-settings':
+      screen = <NotificationSettingsScreen />;
       break;
     case 'onboarding':
       // Onboarding is rendered from App.tsx bootstrap, not as a normal route

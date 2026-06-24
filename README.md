@@ -58,15 +58,26 @@
 * Generación de reportes de transacciones en formato estándar **CSV**.
 * Integración con `expo-sharing` para compartir el archivo exportado a través de correos, aplicaciones de mensajería (WhatsApp, Telegram) o guardarlo localmente.
 
+### 11. Notificaciones Locales y Recordatorios Inteligentes 🔔
+* **Recordatorios en Tiempo Real:** Envío de alertas locales directamente al celular para avisar sobre cobros o ingresos programados por ocurrir.
+* **Personalización Completa:** Pantalla premium dedicada a la configuración de alertas en donde el usuario puede definir:
+  * **Anticipación:** Configuración de días de aviso previo (1, 2, 3, 5 o 7 días antes).
+  * **Frecuencia Diaria:** Elegir recibir avisos 1 vez al día o 2 veces al día (horarios independientes).
+  * **Reloj Digital Premium:** Ajustar la hora exacta mediante un control digital interactivo (horas, minutos y selector AM/PM) con vibración háptica al interactuar.
+* **Mensajes Dinámicos Contextuales:** Las alertas muestran textos claros y personalizados en español como: *"Faltan X días para tu pago de [Concepto] de la cantidad de $ [Monto] pesos"* (o *"Faltan X días para tu ingreso de..."*).
+* **Auto-Rescheduling Automático:** Cada vez que el usuario crea o edita un movimiento recurrente, o cambia sus horarios en los ajustes, la app recalcula y reprograma todas las alarmas exactas nativas en segundo plano.
+
 ---
 
 ## 🛠️ Tecnologías y Librerías Utilizadas
 
-* **Framework:** React Native + Expo (SDK ~54.0.33)
+* **Framework:** React Native + Expo (SDK ~54.0.35)
 * **Lenguaje:** TypeScript
+* **Notificaciones Locales:** `expo-notifications` configurado con canales Android de alta prioridad y permisos avanzados de alarmas exactas (`SCHEDULE_EXACT_ALARM` y `POST_NOTIFICATIONS`) para garantizar la entrega en Android 13+ (Xiaomi, etc.).
+* **Efectos Hápticos:** `expo-haptics` para generar vibraciones premium (micro-devoluciones táctiles) al configurar la hora en el reloj interactivo.
 * **Estilos y Diseño:** CSS Vanilla con componentes estructurados mediante Flexbox. Paleta de colores armoniosa con soporte nativo de **Tema Claro y Tema Oscuro** (`ThemeContext`).
 * **Gestión del Estado:** Context API (`AppStateContext`) y Reductor nativo de React (`useReducer`) para control síncrono del estado global.
-* **Persistencia:** `@react-native-async-storage/async-storage` para almacenamiento local persistente de movimientos, configuraciones y estado de seguridad.
+* **Persistencia:** `@react-native-async-storage/async-storage` para almacenamiento local persistente de movimientos, configuraciones, tiempos de alerta y estado de seguridad.
 * **Gráficos e Ilustración:** `react-native-svg` (para el Donut Chart) y `expo-linear-gradient` (para fondos difuminados premium).
 * **Fuentes:** Google Fonts (`Plus Jakarta Sans`).
 

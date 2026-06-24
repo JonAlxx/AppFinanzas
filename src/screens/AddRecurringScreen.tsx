@@ -218,70 +218,74 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <TextInput
-        ref={amountInputRef}
-        value={amount === '0' ? '' : amount}
-        onChangeText={(v) => {
-          const clean = v.replace(/[^0-9.]/g, '');
-          const parts = clean.split('.');
-          if (parts.length > 2) return;
-          setAmount(clean || '0');
-        }}
-        keyboardType="decimal-pad"
-        style={{
-          position: 'absolute',
-          width: 1,
-          height: 1,
-          opacity: 0,
-        }}
-      />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Amount display (Touch to edit via absolute TextInput overlay) */}
+          <View
+            style={{
+              paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8,
+              alignItems: 'center',
+              position: 'relative',
+            }}
+          >
+            <Animated.View style={{ alignItems: 'center', transform: [{ translateX: shake }] }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+                letterSpacing: 0.4,
+              }}>MONTO</Text>
+              <View style={{
+                flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4,
+                marginTop: 6,
+              }}>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: t.textMuted,
+                }}>$</Text>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 42, color: accentColor,
+                  letterSpacing: -2,
+                  fontVariant: ['tabular-nums'],
+                }}>{display.whole}</Text>
+                {display.hasDecimal ? (
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 42, color: accentColor,
+                    letterSpacing: -2,
+                    fontVariant: ['tabular-nums'],
+                  }}>.{display.cents}</Text>
+                ) : (
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: t.textSubtle,
+                  }}>.00</Text>
+                )}
+              </View>
+            </Animated.View>
 
-      {/* Amount display (Touch to edit) */}
-      <Pressable
-        onPress={() => amountInputRef.current?.focus()}
-        style={{
-          paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8,
-          alignItems: 'center',
-        }}
-      >
-        <Animated.View style={{ alignItems: 'center', transform: [{ translateX: shake }] }}>
-          <Text style={{
-            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
-            letterSpacing: 0.4,
-          }}>MONTO</Text>
-          <View style={{
-            flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4,
-            marginTop: 6,
-          }}>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: t.textMuted,
-            }}>$</Text>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 42, color: accentColor,
-              letterSpacing: -2,
-              fontVariant: ['tabular-nums'],
-            }}>{display.whole}</Text>
-            {display.hasDecimal ? (
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 42, color: accentColor,
-                letterSpacing: -2,
-                fontVariant: ['tabular-nums'],
-              }}>.{display.cents}</Text>
-            ) : (
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 20, color: t.textSubtle,
-              }}>.00</Text>
-            )}
+            {/* Hidden TextInput overlay covering the entire amount area to intercept taps natively */}
+            <TextInput
+              ref={amountInputRef}
+              value={amount === '0' ? '' : amount}
+              onChangeText={(v) => {
+                const clean = v.replace(/[^0-9.]/g, '');
+                const parts = clean.split('.');
+                if (parts.length > 2) return;
+                setAmount(clean || '0');
+              }}
+              keyboardType="decimal-pad"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                opacity: 0.01,
+                color: 'transparent',
+                backgroundColor: 'transparent',
+              }}
+            />
           </View>
-        </Animated.View>
-      </Pressable>
-
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
         {/* Kind segment */}
         <View style={{ paddingBottom: 12, marginTop: 4 }}>
           <View style={{

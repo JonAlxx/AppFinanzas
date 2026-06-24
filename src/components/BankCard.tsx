@@ -16,12 +16,42 @@ export interface BankCardProps {
   isHidden?: boolean;
 }
 
-function NetworkMark({ network }: { network?: string }) {
-  if (network === 'visa' || network === 'mastercard') {
+function NetworkMark({ network, color = '#fff' }: { network?: string; color?: string }) {
+  if (network === 'visa') {
+    return (
+      <Text style={{
+        fontFamily: 'PlusJakartaSans_800ExtraBold',
+        fontSize: 13,
+        color,
+        fontStyle: 'italic',
+        letterSpacing: 0.2,
+      }}>VISA</Text>
+    );
+  }
+  if (network === 'mastercard') {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#EB001B', marginRight: -8, opacity: 0.95 }} />
-        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#F79E1B', opacity: 0.95 }} />
+        <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#EB001B', marginRight: -5, opacity: 0.95 }} />
+        <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#F79E1B', opacity: 0.95 }} />
+      </View>
+    );
+  }
+  if (network === 'amex') {
+    return (
+      <View style={{
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        backgroundColor: '#0070CD',
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+      }}>
+        <Text style={{
+          fontFamily: 'PlusJakartaSans_800ExtraBold',
+          fontSize: 8,
+          color: '#fff',
+          letterSpacing: 0.2,
+        }}>AMEX</Text>
       </View>
     );
   }
@@ -36,48 +66,82 @@ export function BankCard({ acc, balance, onPress, compact, isHidden }: BankCardP
   const Wrapper = onPress ? Pressable : View;
   const wrapperProps = onPress ? { onPress } : {};
 
+  const height = compact ? 116 : 144;
+  const cardName = acc.last4 ? `•••• ${acc.last4}` : acc.name;
+  const balanceText = isHidden 
+    ? '••••' 
+    : (isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)));
+
   // Non-branded layout
   if (!brand) {
     const c = colorFor(t, acc.color);
     return (
       <Wrapper {...wrapperProps as any} style={{
-        borderRadius: 22, overflow: 'hidden',
-        shadowColor: c, shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.45, shadowRadius: 24, elevation: 8,
-        height: compact ? 130 : 168,
+        borderRadius: 20, overflow: 'hidden',
+        shadowColor: c, shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4, shadowRadius: 20, elevation: 8,
+        height,
+        width: '100%',
+        maxWidth: 310,
+        alignSelf: 'center',
       }}>
         <LinearGradient
           colors={[c, c + 'cc' as any]}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={{ padding: compact ? 14 : 18, position: 'relative', overflow: 'hidden', flex: 1, justifyContent: 'space-between' }}
+          style={{ padding: compact ? 12 : 16, flex: 1, justifyContent: 'space-between', position: 'relative' }}
         >
-          <View style={{ position: 'absolute', top: -60, right: -40, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-          <View style={{ position: 'absolute', bottom: -50, left: -30, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.06)' }} />
-          
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          {/* Decorative background shapes */}
+          <View style={{ position: 'absolute', top: -60, right: -40, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+          <View style={{ position: 'absolute', bottom: -50, left: -30, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+
+          {/* Top Row */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 2 }}>
             <View style={{
-              width: compact ? 30 : 38, height: compact ? 30 : 38, borderRadius: compact ? 9 : 12, backgroundColor: 'rgba(255,255,255,0.22)',
+              width: compact ? 28 : 34, height: compact ? 28 : 34, borderRadius: compact ? 8 : 10,
+              backgroundColor: 'rgba(255,255,255,0.22)',
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Icon name={acc.icon} size={compact ? 16 : 20} color="#fff" />
+              <Icon name={acc.icon} size={compact ? 14 : 18} color="#fff" />
             </View>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 9 : 10, color: 'rgba(255,255,255,0.85)',
-              letterSpacing: 0.4,
-            }}>{labelType(acc.type).toUpperCase()}</Text>
+            <View style={{
+              paddingHorizontal: compact ? 8 : 10, paddingVertical: compact ? 2 : 4, borderRadius: 100,
+              backgroundColor: 'rgba(255,255,255,0.18)',
+            }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 8 : 9, color: '#fff',
+                letterSpacing: 0.4,
+              }}>{labelType(acc.type).toUpperCase()}</Text>
+            </View>
           </View>
-          
-          <View style={{ marginTop: compact ? 4 : 18 }}>
-            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 8 : 10, color: 'rgba(255,255,255,0.8)', letterSpacing: 0.4 }}>
+
+          {/* Centered Content Area */}
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', zIndex: 1, marginTop: 4 }}>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 8 : 9, color: 'rgba(255,255,255,0.75)',
+              letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 1
+            }}>
               {isCC ? 'DISPONIBLE' : 'SALDO'}
             </Text>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: compact ? 18 : 22, color: '#fff',
-              letterSpacing: -0.6, marginTop: 1,
-              fontVariant: ['tabular-nums'],
-            }}>{isHidden ? '••••' : (isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)))}</Text>
-            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 10 : 13, color: '#fff', opacity: 0.95, marginTop: compact ? 1 : 4 }}>{acc.name}</Text>
+            <Text numberOfLines={1} style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: compact ? 20 : 24, color: '#fff',
+              letterSpacing: -0.5, fontVariant: ['tabular-nums'],
+            }}>
+              {balanceText}
+            </Text>
+            <Text numberOfLines={1} style={{
+              fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: compact ? 10 : 12, color: 'rgba(255,255,255,0.9)',
+              letterSpacing: 0.2, marginTop: 2,
+            }}>
+              {cardName}
+            </Text>
           </View>
+
+          {/* Floating Network Mark at the bottom right */}
+          {acc.network ? (
+            <View style={{ position: 'absolute', bottom: compact ? 8 : 12, right: compact ? 12 : 16, zIndex: 2 }}>
+              <NetworkMark network={acc.network} color="#fff" />
+            </View>
+          ) : null}
         </LinearGradient>
       </Wrapper>
     );
@@ -86,24 +150,36 @@ export function BankCard({ acc, balance, onPress, compact, isHidden }: BankCardP
   // Branded layout
   return (
     <Wrapper {...wrapperProps as any} style={{
-      borderRadius: 22, overflow: 'hidden',
+      borderRadius: 20, overflow: 'hidden',
       backgroundColor: brand.bg,
-      shadowColor: brand.bg, shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.6, shadowRadius: 24, elevation: 10,
-      height: compact ? 130 : 168,
+      shadowColor: brand.bg, shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.5, shadowRadius: 20, elevation: 8,
+      height,
+      width: '100%',
+      maxWidth: 310,
+      alignSelf: 'center',
     }}>
-      <View style={{ position: 'absolute', top: -60, right: -30, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.06)' }} />
-      <View style={{ position: 'absolute', bottom: -50, left: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+      {/* Decorative background shapes */}
+      <View style={{ position: 'absolute', top: -60, right: -30, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+      <View style={{ position: 'absolute', bottom: -50, left: -30, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.03)' }} />
 
-      <View style={{ padding: compact ? 14 : 18, paddingBottom: compact ? 12 : 16, flex: 1, justifyContent: 'space-between' }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <View style={{ padding: compact ? 12 : 16, flex: 1, justifyContent: 'space-between', position: 'relative' }}>
+        {/* Top Row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 2 }}>
           <View style={{ minHeight: compact ? 20 : 28, justifyContent: 'center' }}>
             {brand.logo ? (
-              <Image source={brand.logo} style={{ height: compact ? 20 : 28, width: compact ? 80 : 110, resizeMode: 'contain' }} />
+              <Image 
+                source={brand.logo} 
+                style={{ 
+                  height: compact ? 20 : 28, 
+                  width: compact ? 70 : 95, 
+                  resizeMode: 'contain' 
+                }} 
+              />
             ) : (
               <Text numberOfLines={1} style={{
-                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: compact ? 16 : 21,
-                color: brand.text, letterSpacing: -0.6,
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: compact ? 14 : 18,
+                color: brand.text, letterSpacing: -0.5,
                 includeFontPadding: false,
               }}>{brand.short}</Text>
             )}
@@ -114,42 +190,42 @@ export function BankCard({ acc, balance, onPress, compact, isHidden }: BankCardP
             backgroundColor: 'rgba(255,255,255,0.18)',
             borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
           }}>
-            <Icon name={acc.icon} size={compact ? 10 : 11} color={brand.text} strokeWidth={2.5} />
+            <Icon name={acc.icon} size={compact ? 9 : 10} color={brand.text} strokeWidth={2.5} />
             <Text style={{
-              fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 8 : 10, color: brand.text,
+              fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 8 : 9, color: brand.text,
               letterSpacing: 0.3,
             }}>{labelType(acc.type).toUpperCase()}</Text>
           </View>
         </View>
 
-        {!compact ? (
-          <View style={{ marginTop: 18 }}>
-            <LinearGradient
-              colors={['rgba(255,255,255,0.5)', 'rgba(255,255,255,0.25)']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={{ width: 30, height: 22, borderRadius: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }}
-            />
+        {/* Centered Content Area */}
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', zIndex: 1, marginTop: 4 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 8 : 9, color: 'rgba(255,255,255,0.72)',
+            letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 1
+          }}>
+            {isCC ? 'DISPONIBLE' : 'SALDO'}
+          </Text>
+          <Text numberOfLines={1} style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: compact ? 20 : 24, color: brand.text,
+            letterSpacing: -0.5, fontVariant: ['tabular-nums'],
+          }}>
+            {balanceText}
+          </Text>
+          <Text numberOfLines={1} style={{
+            fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: compact ? 10 : 12, color: 'rgba(255,255,255,0.85)',
+            letterSpacing: 0.2, marginTop: 2,
+          }}>
+            {cardName}
+          </Text>
+        </View>
+
+        {/* Floating Network Mark at the bottom right */}
+        {acc.network ? (
+          <View style={{ position: 'absolute', bottom: compact ? 8 : 12, right: compact ? 12 : 16, zIndex: 2 }}>
+            <NetworkMark network={acc.network} color={brand.text} />
           </View>
         ) : null}
-
-        <View style={{ marginTop: compact ? 4 : 'auto', paddingTop: compact ? 0 : 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_700Bold', fontSize: compact ? 8 : 10, color: 'rgba(255,255,255,0.78)',
-              letterSpacing: 0.4,
-            }}>{isCC ? 'DISPONIBLE' : 'SALDO'}</Text>
-            <Text numberOfLines={1} style={{
-              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: compact ? 18 : 22, color: brand.text,
-              letterSpacing: -0.6, marginTop: 1,
-              fontVariant: ['tabular-nums'],
-            }}>{isHidden ? '••••' : (isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)))}</Text>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: compact ? 10 : 12, color: 'rgba(255,255,255,0.85)',
-              letterSpacing: 0.4, marginTop: compact ? 1 : 4,
-            }}>{acc.last4 ? `•• •• •• ${acc.last4}` : acc.name}</Text>
-          </View>
-          {acc.network && !compact ? <NetworkMark network={acc.network} /> : null}
-        </View>
       </View>
     </Wrapper>
   );

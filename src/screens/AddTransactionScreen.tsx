@@ -117,7 +117,7 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
       categoryId: type === 'TRANSFER' ? null : categoryId,
       destinationAccountId: type === 'TRANSFER' ? destAccountId : null,
       note: note || null,
-      destinationGoalId: type === 'TRANSFER' ? targetGoalId : null,
+      destinationGoalId: (type === 'TRANSFER' || type === 'INCOME') ? targetGoalId : null,
     };
     dispatch({ type: editingId ? 'UPDATE_TX' : 'ADD_TX', tx });
 
@@ -140,70 +140,74 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <TextInput
-        ref={amountInputRef}
-        value={amount === '0' ? '' : amount}
-        onChangeText={(v) => {
-          const clean = v.replace(/[^0-9.]/g, '');
-          const parts = clean.split('.');
-          if (parts.length > 2) return;
-          setAmount(clean || '0');
-        }}
-        keyboardType="decimal-pad"
-        style={{
-          position: 'absolute',
-          width: 1,
-          height: 1,
-          opacity: 0,
-        }}
-      />
+        <ScrollView
+           style={{ flex: 1 }}
+           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+           keyboardShouldPersistTaps="handled"
+           showsVerticalScrollIndicator={false}
+         >
+           {/* Amount display (Touch to edit via absolute TextInput overlay) */}
+           <View
+             style={{
+               paddingHorizontal: 24, paddingTop: 10, paddingBottom: 6,
+               alignItems: 'center',
+               position: 'relative',
+             }}
+           >
+             <Animated.View style={{ alignItems: 'center', transform: [{ translateX: shake }] }}>
+               <Text style={{
+                 fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+                 letterSpacing: 0.4,
+               }}>MONTO</Text>
+               <View style={{
+                 flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4,
+                 marginTop: 6,
+               }}>
+                 <Text style={{
+                   fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: t.textMuted,
+                 }}>$</Text>
+                 <Text style={{
+                   fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 48, color: typeColor,
+                   letterSpacing: -2,
+                   fontVariant: ['tabular-nums'],
+                 }}>{display.whole}</Text>
+                 {display.hasDecimal ? (
+                   <Text style={{
+                     fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 48, color: typeColor,
+                     letterSpacing: -2,
+                     fontVariant: ['tabular-nums'],
+                   }}>.{display.cents}</Text>
+                 ) : (
+                   <Text style={{
+                     fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: t.textSubtle,
+                   }}>.00</Text>
+                 )}
+               </View>
+             </Animated.View>
 
-      {/* Amount display (Touch to edit) */}
-      <Pressable
-        onPress={() => amountInputRef.current?.focus()}
-        style={{
-          paddingHorizontal: 24, paddingTop: 10, paddingBottom: 6,
-          alignItems: 'center',
-        }}
-      >
-        <Animated.View style={{ alignItems: 'center', transform: [{ translateX: shake }] }}>
-          <Text style={{
-            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
-            letterSpacing: 0.4,
-          }}>MONTO</Text>
-          <View style={{
-            flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 4,
-            marginTop: 6,
-          }}>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: t.textMuted,
-            }}>$</Text>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 48, color: typeColor,
-              letterSpacing: -2,
-              fontVariant: ['tabular-nums'],
-            }}>{display.whole}</Text>
-            {display.hasDecimal ? (
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 48, color: typeColor,
-                letterSpacing: -2,
-                fontVariant: ['tabular-nums'],
-              }}>.{display.cents}</Text>
-            ) : (
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22, color: t.textSubtle,
-              }}>.00</Text>
-            )}
+            {/* Hidden TextInput overlay covering the entire amount area to intercept taps natively */}
+            <TextInput
+              ref={amountInputRef}
+              value={amount === '0' ? '' : amount}
+              onChangeText={(v) => {
+                const clean = v.replace(/[^0-9.]/g, '');
+                const parts = clean.split('.');
+                if (parts.length > 2) return;
+                setAmount(clean || '0');
+              }}
+              keyboardType="decimal-pad"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                opacity: 0.01,
+                color: 'transparent',
+                backgroundColor: 'transparent',
+              }}
+            />
           </View>
-        </Animated.View>
-      </Pressable>
-
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
         {/* Type segment */}
         <View style={{ paddingBottom: 12, marginTop: 4 }}>
           <View style={{
@@ -241,10 +245,11 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
           {type !== 'TRANSFER' ? (
             <FormRow icon="tag" label="Categoría" onPress={() => setShowCatSheet(true)}>
               {cat ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
                   <CategoryBadge cat={cat} size={28} radius={9} iconSize={14} />
-                  <Text style={{
+                  <Text numberOfLines={1} style={{
                     fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                    flexShrink: 1,
                   }}>{cat.name}</Text>
                 </View>
               ) : (
@@ -260,12 +265,35 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
             label={type === 'TRANSFER' ? 'Desde' : 'Cuenta'}
             onPress={() => setShowAccountPicker(true)}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <AccountBadge acc={acc} size={28} radius={9} />
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
-              }}>{acc?.name}</Text>
-            </View>
+            {type === 'INCOME' && targetGoalId && state.goals.find(g => g.id === targetGoalId) ? (() => {
+              const g = state.goals.find(x => x.id === targetGoalId)!;
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                  <View style={{
+                    width: 28, height: 28, borderRadius: 9,
+                    backgroundColor: softFor(t, g.color),
+                    alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <Icon name={g.icon} size={15} color={colorFor(t, g.color)} />
+                  </View>
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                    flexShrink: 1,
+                  }}>
+                    Meta: {g.name}
+                  </Text>
+                </View>
+              );
+            })() : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                <AccountBadge acc={acc} size={28} radius={9} />
+                <Text numberOfLines={1} style={{
+                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                  flexShrink: 1,
+                }}>{acc?.name}</Text>
+              </View>
+            )}
           </FormRow>
 
           {type === 'TRANSFER' ? (
@@ -274,26 +302,29 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
                 const g = state.goals.find(x => x.id === targetGoalId)!;
                 const gAcc = state.accounts.find(a => a.id === g.accountId);
                 return (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
                     <View style={{
                       width: 28, height: 28, borderRadius: 9,
                       backgroundColor: softFor(t, g.color),
                       alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
                     }}>
                       <Icon name={g.icon} size={15} color={colorFor(t, g.color)} />
                     </View>
                     <Text numberOfLines={1} style={{
                       fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                      flexShrink: 1,
                     }}>
                       Meta: {g.name} <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', color: t.textMuted }}>({gAcc?.name})</Text>
                     </Text>
                   </View>
                 );
               })() : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
                   <AccountBadge acc={dest} size={28} radius={9} />
                   <Text numberOfLines={1} style={{
                     fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                    flexShrink: 1,
                   }}>{dest?.name}</Text>
                 </View>
               )}
@@ -406,8 +437,22 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
         accounts={state.accounts}
         transactions={state.transactions}
         selected={accountId}
-        onSelect={(id) => { setAccountId(id); setShowAccountPicker(false); }}
+        onSelect={(id) => { 
+          setAccountId(id); 
+          setTargetGoalId(null); 
+          setShowAccountPicker(false); 
+        }}
         title="Elige cuenta"
+        goals={type === 'INCOME' ? state.goals : undefined}
+        selectedGoalId={type === 'INCOME' ? targetGoalId : null}
+        onSelectGoal={(goalId) => {
+          const g = state.goals.find(x => x.id === goalId);
+          if (g) {
+            setAccountId(g.accountId);
+            setTargetGoalId(g.id);
+          }
+          setShowAccountPicker(false);
+        }}
       />
       <Sheet open={showDestPicker} onClose={() => setShowDestPicker(false)} height="75%">
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 30 }}>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -10,6 +10,7 @@ import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
 import { colorFor, softFor } from '../theme/theme';
+import { triggerImmediateTestNotification } from '../utils/notifications';
 
 import { Card } from '../components/Card';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -105,6 +106,12 @@ export function SettingsScreen() {
   const [showCurrencySheet, setShowCurrencySheet] = useState(false);
   const [showExportSheet, setShowExportSheet] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showAdminSheet, setShowAdminSheet] = useState(false);
+  const [adminAmount, setAdminAmount] = useState('500');
+  const [adminNote, setAdminNote] = useState('Prueba de nómina');
+  const [adminIsIncome, setAdminIsIncome] = useState(true);
+
+  const isAdmin = state.profile?.phone === '12345678123';
 
   const totalCategories = DEFAULT_CATEGORIES.length + state.customCategories.length;
   const customCount = state.customCategories.length;
@@ -218,6 +225,30 @@ export function SettingsScreen() {
             value={`${state.notifications.filter(n => !n.read).length} sin leer`}
             onPress={() => navigate('notifications')}
           />
+          <Divider />
+          <Row
+            icon="bell" color="orange" title="Alertas en el celular (Android)"
+            value={
+              (state.pushNotificationsEnabled ?? true)
+                ? `Activo · ${state.notificationDaysBefore ?? 3}d antes · ${
+                    state.notificationFrequency === 'once'
+                      ? `${(state.notificationHour ?? 9) % 12 === 0 ? 12 : (state.notificationHour ?? 9) % 12}:${String(state.notificationMinute ?? 0).padStart(2, '0')} ${(state.notificationHour ?? 9) >= 12 ? 'PM' : 'AM'}`
+                      : `${(state.notificationHour ?? 9) % 12 === 0 ? 12 : (state.notificationHour ?? 9) % 12}:${String(state.notificationMinute ?? 0).padStart(2, '0')} ${(state.notificationHour ?? 9) >= 12 ? 'PM' : 'AM'} y ${(state.notificationHour2 ?? 21) % 12 === 0 ? 12 : (state.notificationHour2 ?? 21) % 12}:${String(state.notificationMinute2 ?? 0).padStart(2, '0')} ${(state.notificationHour2 ?? 21) >= 12 ? 'PM' : 'AM'}`
+                  }`
+                : 'Desactivado'
+            }
+            onPress={() => navigate('notification-settings')}
+          />
+          {isAdmin ? (
+            <>
+              <Divider />
+              <Row
+                icon="shield" color="indigo" title="Opciones de Administrador"
+                value="Panel de pruebas de notificaciones"
+                onPress={() => setShowAdminSheet(true)}
+              />
+            </>
+          ) : null}
           <Divider />
           <Row
             icon="globe" color="teal" title="Moneda"
@@ -418,6 +449,139 @@ export function SettingsScreen() {
             </Pressable>
           </View>
         </View>
+      </Sheet>
+
+      {/* Admin Panel Sheet */}
+      <Sheet open={showAdminSheet} onClose={() => setShowAdminSheet(false)} height="65%">
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 10,
+          }}>Panel de Administrador</Text>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
+            marginBottom: 16, lineHeight: 16,
+          }}>
+            Prueba de inmediato el funcionamiento de las notificaciones nativas en el dispositivo. Al presionar el botón, se disparará una alerta de prueba en 2 segundos.
+          </Text>
+
+          {/* Type Selector (Ingreso / Gasto) */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 6,
+          }}>TIPO DE MOVIMIENTO</Text>
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 14 }}>
+            <Pressable
+              onPress={() => setAdminIsIncome(true)}
+              style={{
+                flex: 1, paddingVertical: 10, borderRadius: 10,
+                backgroundColor: adminIsIncome ? softFor(t, 'green') : t.surfaceAlt,
+                borderWidth: 1, borderColor: adminIsIncome ? t.green : t.border,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                color: adminIsIncome ? t.green : t.text,
+              }}>Ingreso</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setAdminIsIncome(false)}
+              style={{
+                flex: 1, paddingVertical: 10, borderRadius: 10,
+                backgroundColor: !adminIsIncome ? softFor(t, 'rose') : t.surfaceAlt,
+                borderWidth: 1, borderColor: !adminIsIncome ? t.rose : t.border,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                color: !adminIsIncome ? t.rose : t.text,
+              }}>Gasto</Text>
+            </Pressable>
+          </View>
+
+          {/* Amount input */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 6,
+          }}>MONTO A NOTIFICAR</Text>
+          <TextInput
+            value={adminAmount}
+            onChangeText={(v) => setAdminAmount(v.replace(/[^0-9.]/g, ''))}
+            keyboardType="decimal-pad"
+            placeholder="500"
+            placeholderTextColor={t.textMuted}
+            style={{
+              paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10,
+              backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
+              color: t.text, fontSize: 14, fontFamily: 'PlusJakartaSans_600SemiBold',
+              marginBottom: 14,
+            }}
+          />
+
+          {/* Note input */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 6,
+          }}>CONCEPTO / NOTA</Text>
+          <TextInput
+            value={adminNote}
+            onChangeText={setAdminNote}
+            placeholder="Ej. Nómina quincenal"
+            placeholderTextColor={t.textMuted}
+            style={{
+              paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10,
+              backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
+              color: t.text, fontSize: 14, fontFamily: 'PlusJakartaSans_600SemiBold',
+              marginBottom: 20,
+            }}
+          />
+
+          {/* Test Button */}
+          <Pressable
+            onPress={async () => {
+              const amountVal = parseFloat(adminAmount) || 0;
+              if (amountVal <= 0) {
+                Alert.alert('Monto inválido', 'Por favor ingresa un monto mayor a 0.');
+                return;
+              }
+              try {
+                await triggerImmediateTestNotification(amountVal, adminNote, adminIsIncome);
+                Alert.alert(
+                  'Prueba programada',
+                  'La alerta de prueba se disparará exactamente en 2 segundos. Bloquea tu pantalla o sal al inicio para verla.',
+                  [{ text: 'Entendido' }]
+                );
+              } catch (e: any) {
+                if (e.message === 'expo-notifications_not_installed') {
+                  Alert.alert(
+                    'Librería no instalada',
+                    'La librería "expo-notifications" no está instalada en el proyecto todavía. Debes completar la instalación en el código para poder disparar alertas nativas en tu celular.',
+                    [{ text: 'Aceptar' }]
+                  );
+                } else {
+                  Alert.alert('Error al probar', e?.message || 'Ocurrió un error inesperado al programar la alerta.');
+                }
+              }
+            }}
+            style={({ pressed }) => [{
+              paddingVertical: 14,
+              borderRadius: 16,
+              backgroundColor: t.indigo,
+              alignItems: 'center',
+              opacity: pressed ? 0.85 : 1,
+            }]}
+          >
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold',
+              fontSize: 14,
+              color: '#fff',
+            }}>
+              Probar Notificación (2s)
+            </Text>
+          </Pressable>
+        </ScrollView>
       </Sheet>
     </View>
   );

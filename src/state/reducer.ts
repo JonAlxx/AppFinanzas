@@ -30,6 +30,8 @@ export type Action =
   | { type: 'SET_CARD_ORDER'; order: string[] }
   | { type: 'ADD_NOTIFICATIONS'; notifications: AppNotification[] }
   | { type: 'IMPORT_STATE'; state: AppState }
+  | { type: 'TOGGLE_PUSH_NOTIFICATIONS' }
+  | { type: 'UPDATE_NOTIFICATION_SETTINGS'; daysBefore: number; hour: number; minute: number; hour2: number; minute2: number; frequency: 'once' | 'twice' | string }
   | { type: 'RESET' };
 
 export function initialState(dark = false): AppState {
@@ -52,6 +54,13 @@ export function initialState(dark = false): AppState {
     },
     cardOrder: ['debit', 'cash', 'credit'],
     hiddenCards: [],
+    pushNotificationsEnabled: true,
+    notificationDaysBefore: 3,
+    notificationHour: 9,
+    notificationMinute: 0,
+    notificationHour2: 21,
+    notificationMinute2: 0,
+    notificationFrequency: 'twice',
   };
 }
 
@@ -62,7 +71,7 @@ export function reducer(state: AppState, action: Action): AppState {
         return state;
       }
       let newGoals = state.goals;
-      if (action.tx.type === 'TRANSFER' && action.tx.destinationGoalId) {
+      if ((action.tx.type === 'TRANSFER' || action.tx.type === 'INCOME') && action.tx.destinationGoalId) {
         newGoals = state.goals.map(g =>
           g.id === action.tx.destinationGoalId
             ? { ...g, current: g.current + action.tx.amount }
@@ -74,14 +83,14 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'UPDATE_TX': {
       const oldTx = state.transactions.find(t => t.id === action.tx.id);
       let newGoals = state.goals;
-      if (oldTx && oldTx.type === 'TRANSFER' && oldTx.destinationGoalId) {
+      if (oldTx && (oldTx.type === 'TRANSFER' || oldTx.type === 'INCOME') && oldTx.destinationGoalId) {
         newGoals = newGoals.map(g =>
           g.id === oldTx.destinationGoalId
             ? { ...g, current: Math.max(0, g.current - oldTx.amount) }
             : g
         );
       }
-      if (action.tx.type === 'TRANSFER' && action.tx.destinationGoalId) {
+      if ((action.tx.type === 'TRANSFER' || action.tx.type === 'INCOME') && action.tx.destinationGoalId) {
         newGoals = newGoals.map(g =>
           g.id === action.tx.destinationGoalId
             ? { ...g, current: g.current + action.tx.amount }
@@ -97,17 +106,36 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'DELETE_TX': {
       const oldTx = state.transactions.find(t => t.id === action.id);
       let newGoals = state.goals;
-      if (oldTx && oldTx.type === 'TRANSFER' && oldTx.destinationGoalId) {
+      if (oldTx && (oldTx.type === 'TRANSFER' || oldTx.type === 'INCOME') && oldTx.destinationGoalId) {
         newGoals = state.goals.map(g =>
           g.id === oldTx.destinationGoalId
             ? { ...g, current: Math.max(0, g.current - oldTx.amount) }
             : g
         );
       }
+
+      // Rollback recurring payment state if the deleted transaction was materialized from a rule
+      let updatedRecurring = state.recurring;
+      if (action.id.startsWith('tx-rec-')) {
+        const rule = state.recurring.find(r => action.id.startsWith(`tx-rec-${r.id}-`));
+        if (rule) {
+          const remainingTxs = state.transactions.filter(
+            t => t.id !== action.id && t.id.startsWith(`tx-rec-${rule.id}-`)
+          );
+          const maxDate = remainingTxs.length > 0 ? Math.max(...remainingTxs.map(t => t.date)) : null;
+          updatedRecurring = state.recurring.map(r =>
+            r.id === rule.id
+              ? { ...r, lastGenerated: maxDate, active: r.frequency === 'once' ? true : r.active }
+              : r
+          );
+        }
+      }
+
       return {
         ...state,
         transactions: state.transactions.filter(t => t.id !== action.id),
         goals: newGoals,
+        recurring: updatedRecurring,
       };
     }
     case 'ADD_ACC':
@@ -205,8 +233,27 @@ export function reducer(state: AppState, action: Action): AppState {
         profile: action.state.profile ?? state.profile,
         cardOrder: action.state.cardOrder ?? ['debit', 'cash', 'credit'],
         hiddenCards: action.state.hiddenCards ?? [],
+        pushNotificationsEnabled: action.state.pushNotificationsEnabled ?? true,
+        notificationDaysBefore: action.state.notificationDaysBefore ?? 3,
+        notificationHour: action.state.notificationHour ?? 9,
+        notificationMinute: action.state.notificationMinute ?? 0,
+        notificationHour2: action.state.notificationHour2 ?? 21,
+        notificationMinute2: action.state.notificationMinute2 ?? 0,
+        notificationFrequency: action.state.notificationFrequency ?? 'twice',
       };
     }
+    case 'TOGGLE_PUSH_NOTIFICATIONS':
+      return { ...state, pushNotificationsEnabled: !(state.pushNotificationsEnabled ?? true) };
+    case 'UPDATE_NOTIFICATION_SETTINGS':
+      return {
+        ...state,
+        notificationDaysBefore: action.daysBefore,
+        notificationHour: action.hour,
+        notificationMinute: action.minute,
+        notificationHour2: action.hour2,
+        notificationMinute2: action.minute2,
+        notificationFrequency: action.frequency,
+      };
     case 'RESET':
       return initialState(state.dark);
     default:

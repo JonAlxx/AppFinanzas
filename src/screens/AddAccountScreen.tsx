@@ -140,47 +140,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
       >
         {/* Preview */}
         <View style={{ marginBottom: 18 }}>
-          {brand ? (
-            <BankCard acc={previewAcc} balance={Math.round(previewInitial * 100)} />
-          ) : (
-            <View style={{
-              borderRadius: 22, overflow: 'hidden',
-              shadowColor: accColor, shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.4, shadowRadius: 20, elevation: 8,
-            }}>
-              <LinearGradient
-                colors={[accColor, accColor + 'cc' as any]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={{ padding: 22 }}
-              >
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <View style={{
-                    width: 44, height: 44, borderRadius: 14,
-                    backgroundColor: 'rgba(255,255,255,0.22)',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Icon name={icon} size={22} color="#fff" />
-                  </View>
-                  <Text style={{
-                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: 'rgba(255,255,255,0.8)',
-                  }}>{TYPES.find(x => x.id === type)?.label.toUpperCase()}</Text>
-                </View>
-                <Text style={{
-                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: 'rgba(255,255,255,0.8)',
-                  letterSpacing: 0.3, marginTop: 18,
-                }}>{type === 'CREDIT_CARD' ? 'DISPONIBLE' : 'SALDO'}</Text>
-                <Text style={{
-                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 24, color: '#fff',
-                  letterSpacing: -0.6, marginTop: 2,
-                  fontVariant: ['tabular-nums'],
-                }}>${(type === 'CREDIT_CARD' ? (limitNum ? limitNum - Math.abs(previewInitial) : balanceNum) : balanceNum).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</Text>
-                <Text style={{
-                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: '#fff', opacity: 0.9,
-                  marginTop: 8,
-                }}>{name || 'Nombre de cuenta'}</Text>
-              </LinearGradient>
-            </View>
-          )}
+          <BankCard acc={previewAcc} balance={Math.round(previewInitial * 100)} />
         </View>
 
         <Card padding={16}>
@@ -283,7 +243,11 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                   {b.logo ? (
                     <Image
                       source={b.logo}
-                      style={{ height: 28, width: 70, resizeMode: 'contain' }}
+                      style={{ 
+                        height: 32, 
+                        width: 75, 
+                        resizeMode: 'contain' 
+                      }}
                     />
                   ) : (
                     <Text numberOfLines={1} style={{
@@ -340,6 +304,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                 {[
                   { id: 'visa', label: 'Visa' },
                   { id: 'mastercard', label: 'Mastercard' },
+                  { id: 'amex', label: 'Amex' },
                 ].map(n => {
                   const active = network === n.id;
                   return (

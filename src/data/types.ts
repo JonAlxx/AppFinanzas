@@ -124,6 +124,13 @@ export interface AppState {
   profile?: UserProfile;
   cardOrder?: string[];
   hiddenCards?: string[];
+  pushNotificationsEnabled?: boolean;
+  notificationDaysBefore?: number;
+  notificationHour?: number;
+  notificationMinute?: number;
+  notificationHour2?: number;
+  notificationMinute2?: number;
+  notificationFrequency?: 'once' | 'twice' | string;
 }
 
 export interface MonthPoint {

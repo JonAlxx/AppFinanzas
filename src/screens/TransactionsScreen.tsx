@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { FlatList, ScrollView, Text, TextInput, View } from 'react-native';
+import { FlatList, ScrollView, Text, TextInput, View, Alert, Pressable } from 'react-native';
 
 import { catById } from '../data/catalog';
-import { dayLabel } from '../data/format';
+import { dayLabel, fmtMXN } from '../data/format';
 import { TransactionType } from '../data/types';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
+import { softFor } from '../theme/theme';
 
 import { Card } from '../components/Card';
 import { Chip } from '../components/Chip';
@@ -14,6 +15,7 @@ import { EmptyState } from '../components/EmptyState';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { TransactionRow } from '../components/TransactionRow';
 import { Icon } from '../icons/Icon';
+import { Sheet } from '../components/Sheet';
 
 type Filter = 'ALL' | TransactionType;
 
@@ -26,11 +28,12 @@ const FILTERS: { id: Filter; label: string; color?: string }[] = [
 
 export function TransactionsScreen() {
   const { t } = useTheme();
-  const { state } = useAppState();
+  const { state, dispatch } = useAppState();
   const { navigate } = useNavigation();
 
   const [filter, setFilter] = useState<Filter>('ALL');
   const [search, setSearch] = useState('');
+  const [activeTx, setActiveTx] = useState<any>(null);
 
   const filtered = useMemo(() => {
     let txs = [...state.transactions].sort((a, b) => b.date - a.date);
@@ -112,9 +115,11 @@ export function TransactionsScreen() {
                   key={tx.id}
                   tx={tx}
                   accounts={state.accounts}
+                  goals={state.goals}
                   customCategories={state.customCategories}
                   divider={j < day.txs.length - 1}
                   onPress={() => navigate({ screen: 'transaction-detail', id: tx.id })}
+                  onLongPress={() => setActiveTx(tx)}
                 />
               ))}
             </Card>
@@ -133,6 +138,124 @@ export function TransactionsScreen() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Quick Actions Context Menu Sheet */}
+      <Sheet open={activeTx !== null} onClose={() => setActiveTx(null)} height="38%">
+        {activeTx && (() => {
+          const cat = activeTx.categoryId ? catById(activeTx.categoryId, state.customCategories) : undefined;
+          const isIncome = activeTx.type === 'INCOME';
+          const isTransfer = activeTx.type === 'TRANSFER';
+          const amtColor = isIncome ? t.green : isTransfer ? t.indigo : t.text;
+          const sign = isIncome ? '+' : isTransfer ? '' : '-';
+          
+          return (
+            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+                letterSpacing: -0.3, marginBottom: 16,
+              }}>Acciones Rápidas</Text>
+              
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 14,
+                padding: 16, borderRadius: 18, backgroundColor: t.surfaceAlt,
+                borderWidth: 1, borderColor: t.border, marginBottom: 20,
+              }}>
+                <View style={{
+                  width: 46, height: 46, borderRadius: 14,
+                  backgroundColor: softFor(t, isIncome ? 'green' : isTransfer ? 'indigo' : 'rose'),
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name={isTransfer ? 'transfer' : isIncome ? 'arrow-down' : 'arrow-up'} size={22} color={isIncome ? t.green : isTransfer ? t.indigo : t.rose} strokeWidth={2.2} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.text,
+                  }}>{activeTx.note || (isTransfer ? 'Transferencia' : cat?.name || 'Sin categoría')}</Text>
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted,
+                    marginTop: 2,
+                  }}>
+                    {isTransfer ? 'Transferencia de cuenta' : cat?.name || 'Gasto'}
+                  </Text>
+                </View>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 16,
+                  color: amtColor,
+                  fontVariant: ['tabular-nums'],
+                }}>
+                  {sign}{fmtMXN(activeTx.amount).replace('-', '')}
+                </Text>
+              </View>
+
+              <View style={{ gap: 10 }}>
+                <Pressable
+                  onPress={() => {
+                    const tx = activeTx;
+                    setActiveTx(null);
+                    navigate({ screen: 'add-transaction', id: tx.id, type: tx.type });
+                  }}
+                  style={({ pressed }) => [{
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                    backgroundColor: t.indigo,
+                    alignItems: 'center',
+                    flexDirection: 'row', justifyContent: 'center', gap: 8,
+                    opacity: pressed ? 0.85 : 1,
+                  }]}
+                >
+                  <Icon name="edit" size={18} color="#fff" strokeWidth={2.5} />
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold',
+                    fontSize: 14,
+                    color: '#fff',
+                  }}>
+                    Editar Movimiento
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    const txId = activeTx.id;
+                    setActiveTx(null);
+                    Alert.alert(
+                      'Eliminar Movimiento',
+                      '¿Estás seguro de que deseas eliminar este movimiento permanentemente?',
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Eliminar',
+                          style: 'destructive',
+                          onPress: () => {
+                            dispatch({ type: 'DELETE_TX', id: txId });
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  style={({ pressed }) => [{
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                    backgroundColor: 'transparent',
+                    borderWidth: 1, borderColor: t.rose,
+                    alignItems: 'center',
+                    flexDirection: 'row', justifyContent: 'center', gap: 8,
+                    opacity: pressed ? 0.75 : 1,
+                  }]}
+                >
+                  <Icon name="trash" size={18} color={t.rose} strokeWidth={2.5} />
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold',
+                    fontSize: 14,
+                    color: t.rose,
+                  }}>
+                    Eliminar Movimiento
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })()}
+      </Sheet>
     </View>
   );
 }

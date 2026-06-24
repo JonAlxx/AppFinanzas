@@ -292,36 +292,38 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
           style={{ marginTop: 12, marginHorizontal: -16 }}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
         >
-          {subtotalCards.map(card => {
-            const isCardHidden = balanceHidden || hiddenCards.includes(card.key);
-            return (
-              <Card
-                key={card.key}
-                padding={10}
-                style={{ width: 110 }}
-                onPress={() => setFilter(card.key as AccountFilter)}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <View style={{
-                    width: 20, height: 20, borderRadius: 6,
-                    backgroundColor: card.softBg,
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Icon name={card.icon} size={11} color={card.color} strokeWidth={2.4} />
+          {subtotalCards
+            .filter(card => filter === 'all' || card.key === filter)
+            .map(card => {
+              const isCardHidden = balanceHidden || hiddenCards.includes(card.key);
+              return (
+                <Card
+                  key={card.key}
+                  padding={10}
+                  style={{ width: 110 }}
+                  onPress={() => setFilter(card.key as AccountFilter)}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{
+                      width: 20, height: 20, borderRadius: 6,
+                      backgroundColor: card.softBg,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Icon name={card.icon} size={11} color={card.color} strokeWidth={2.4} />
+                    </View>
+                    <Text numberOfLines={1} style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted,
+                      letterSpacing: 0.1, flex: 1,
+                    }}>{card.title}</Text>
                   </View>
                   <Text numberOfLines={1} style={{
-                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted,
-                    letterSpacing: 0.1, flex: 1,
-                  }}>{card.title}</Text>
-                </View>
-                <Text numberOfLines={1} style={{
-                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text,
-                  marginTop: 6, letterSpacing: -0.4,
-                  fontVariant: ['tabular-nums'],
-                }}>{isCardHidden ? '••••' : fmtMXN(card.value)}</Text>
-              </Card>
-            );
-          })}
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text,
+                    marginTop: 6, letterSpacing: -0.4,
+                    fontVariant: ['tabular-nums'],
+                  }}>{isCardHidden ? '••••' : fmtMXN(card.value)}</Text>
+                </Card>
+              );
+            })}
         </ScrollView>
 
         {sections.map(sec => {

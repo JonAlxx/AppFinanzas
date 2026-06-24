@@ -43,6 +43,16 @@ export function AddGoalScreen({ editingId }: AddGoalScreenProps) {
     return '3';
   });
 
+  const [isCustomMonths, setIsCustomMonths] = useState(() => {
+    if (editing?.deadline) {
+      const diffMs = editing.deadline - Date.now();
+      const diffMonths = Math.round(diffMs / (30 * 86400000));
+      const presets = ['1', '3', '6', '12'];
+      return diffMonths > 0 && !presets.includes(diffMonths.toString());
+    }
+    return false;
+  });
+
   function save() {
     if (!name.trim()) {
       Alert.alert('Nombre faltante', 'Por favor ingresa un nombre para la meta.');
@@ -85,6 +95,20 @@ export function AddGoalScreen({ editingId }: AddGoalScreenProps) {
       yields: showYieldsOption ? yields : false,
       yieldRate: showYieldsOption && yields ? parseFloat(yieldRate) || 0 : 0,
     };
+
+    // If editing, account changed, and there are savings, move the savings between accounts
+    if (editing && editing.accountId !== accountId && editing.current > 0) {
+      const transferTx = {
+        id: 'tx-realloc-' + Date.now(),
+        type: 'TRANSFER' as const,
+        amount: editing.current,
+        date: Date.now(),
+        accountId: editing.accountId, // old account
+        destinationAccountId: accountId, // new account
+        note: `Reubicación de ahorro: ${editing.name}`,
+      };
+      dispatch({ type: 'ADD_TX', tx: transferTx });
+    }
 
     dispatch({
       type: editing ? 'UPDATE_GOAL' : 'ADD_GOAL',
@@ -375,11 +399,14 @@ export function AddGoalScreen({ editingId }: AddGoalScreenProps) {
               }}>PLAZO EN MESES</Text>
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                 {['1', '3', '6', '12'].map(m => {
-                  const selected = months === m;
+                  const selected = !isCustomMonths && months === m;
                   return (
                     <Pressable
                       key={m}
-                      onPress={() => setMonths(m)}
+                      onPress={() => {
+                        setMonths(m);
+                        setIsCustomMonths(false);
+                      }}
                       style={{
                         paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
                         borderWidth: 1, borderColor: selected ? t.indigo : t.border,
@@ -395,21 +422,42 @@ export function AddGoalScreen({ editingId }: AddGoalScreenProps) {
                     </Pressable>
                   );
                 })}
+                <Pressable
+                  onPress={() => {
+                    setIsCustomMonths(true);
+                  }}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+                    borderWidth: 1, borderColor: isCustomMonths ? t.indigo : t.border,
+                    backgroundColor: isCustomMonths ? softFor(t, 'indigo') : 'transparent',
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                    color: isCustomMonths ? t.indigo : t.text,
+                  }}>
+                    Personalizar
+                  </Text>
+                </Pressable>
               </View>
-              <TextInput
-                value={months}
-                onChangeText={(v) => setMonths(v.replace(/[^0-9.]/g, ''))}
-                placeholder="Plazo personalizado (meses)"
-                placeholderTextColor={t.textMuted}
-                keyboardType="numeric"
-                style={{
-                  paddingVertical: 10,
-                  borderBottomWidth: 1, borderBottomColor: t.border,
-                  color: t.text, fontSize: 14,
-                  fontFamily: 'PlusJakartaSans_600SemiBold',
-                  fontVariant: ['tabular-nums'],
-                }}
-              />
+
+              {isCustomMonths && (
+                <TextInput
+                  value={months}
+                  onChangeText={(v) => setMonths(v.replace(/[^0-9]/g, ''))}
+                  placeholder="Plazo personalizado (meses)"
+                  placeholderTextColor={t.textMuted}
+                  keyboardType="numeric"
+                  style={{
+                    paddingVertical: 10,
+                    borderBottomWidth: 1, borderBottomColor: t.border,
+                    color: t.text, fontSize: 14,
+                    fontFamily: 'PlusJakartaSans_600SemiBold',
+                    fontVariant: ['tabular-nums'],
+                    marginTop: 4,
+                  }}
+                />
+              )}
             </View>
           )}
 

@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Image, Pressable, ScrollView, Text, View, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle } from 'react-native-svg';
 
 import { catById } from '../data/catalog';
 import { fmtMXN } from '../data/format';
@@ -92,8 +93,10 @@ export function DashboardScreen() {
   const [showOrderSheet, setShowOrderSheet] = useState(false);
   const [selectedUpcoming, setSelectedUpcoming] = useState<{ rule: Recurring; date: number } | null>(null);
   const [detailSection, setDetailSection] = useState<string | null>(null);
+  const [activeTx, setActiveTx] = useState<any>(null);
+  const [showHealthSheet, setShowHealthSheet] = useState(false);
 
-  const { accounts, transactions, budgets, recurring, notifications, balanceHidden, hiddenCards = [] } = state;
+  const { accounts, transactions, budgets, recurring, notifications, balanceHidden, hiddenCards = [], goals, pushNotificationsEnabled } = state;
   const summary = useMemo(() => computeBalanceSummary(accounts, transactions), [accounts, transactions]);
   const debitAccounts = useMemo(() => accounts.filter(a => a.type === 'BANK' || a.type === 'DEBIT_CARD'), [accounts]);
   const cashAccounts = useMemo(() => accounts.filter(isCashAccount), [accounts]);
@@ -160,7 +163,103 @@ export function DashboardScreen() {
   
   const nextPayments = useMemo(() => upcomingPayments(recurring, 7, 3), [recurring]);
 
+  const urgentPayments = useMemo(() => {
+    return nextPayments.filter(p => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diffDays = Math.round((p.date - today.getTime()) / 86400000);
+      return diffDays >= 0 && diffDays <= 3;
+    });
+  }, [nextPayments]);
+
+  const healthScore = useMemo(() => {
+    // 1. Budget Score (40 pts)
+    let budgetScore = 40;
+    let totalBudgetLimit = 0;
+    let totalBudgetSpent = 0;
+    if (budgets.length > 0) {
+      budgets.forEach(b => {
+        totalBudgetLimit += b.limit;
+        totalBudgetSpent += spentByCategory(transactions, b.categoryId, 30);
+      });
+      if (totalBudgetLimit > 0) {
+        const ratio = totalBudgetSpent / totalBudgetLimit;
+        if (ratio > 1.0) {
+          budgetScore = Math.max(0, 40 - (ratio - 1.0) * 80);
+        } else if (ratio > 0.8) {
+          budgetScore = 40 - (ratio - 0.8) * 50;
+        }
+      }
+    }
+
+    // 2. Savings Score (30 pts)
+    let savingsScore = 15;
+    const totalIncome = transactions.filter(t => t.type === 'INCOME' && Date.now() - t.date <= 30 * 86400000).reduce((sum, t) => sum + t.amount, 0);
+    const totalSaved = goals.reduce((sum, g) => sum + g.current, 0);
+    if (totalIncome > 0) {
+      const savingsRate = totalSaved / totalIncome;
+      savingsScore = Math.min(30, Math.round(savingsRate * 100));
+    } else if (totalSaved > 0) {
+      savingsScore = 30;
+    }
+
+    // 3. Credit Score (30 pts)
+    let creditScore = 30;
+    if (creditStats.limit > 0) {
+      const creditRatio = creditStats.used / creditStats.limit;
+      if (creditRatio > 0.8) {
+        creditScore = 5;
+      } else if (creditRatio > 0.5) {
+        creditScore = 15;
+      } else if (creditRatio > 0.3) {
+        creditScore = 25;
+      }
+    }
+
+    const score = Math.max(0, Math.min(100, Math.round(budgetScore + savingsScore + creditScore)));
+    
+    let advice = "Excelente control financiero. Sigue así.";
+    if (score < 50) {
+      advice = "Alerta: Tus presupuestos están al límite y tu deuda es alta. Intenta recortar gastos.";
+    } else if (score < 75) {
+      advice = "Buen camino, pero intenta aumentar tu nivel de ahorro mensual.";
+    } else if (budgetScore < 30) {
+      advice = "Cuidado: Estás muy cerca de superar el límite de tus presupuestos.";
+    } else if (creditScore < 20) {
+      advice = "Consejo: Tus tarjetas de crédito están muy usadas, intenta liquidar saldos.";
+    }
+
+    return {
+      score,
+      advice,
+      budgetScore: Math.round(budgetScore),
+      savingsScore: Math.round(savingsScore),
+      creditScore: Math.round(creditScore),
+      totalBudgetLimit,
+      totalBudgetSpent,
+      totalIncome,
+      totalSaved,
+      creditLimit: creditStats.limit,
+      creditUsed: creditStats.used
+    };
+  }, [budgets, transactions, goals, creditStats]);
+
   function confirmPayment(p: { rule: Recurring; date: number }) {
+    const isIncome = p.rule.type === 'INCOME';
+    const acc = accounts.find(a => a.id === p.rule.accountId);
+
+    if (!isIncome) {
+      const balance = acc ? computeAccountBalance(acc, transactions) : 0;
+      if (p.rule.amount > balance) {
+        Alert.alert(
+          'Saldo insuficiente',
+          `La cuenta "${acc?.name || 'seleccionada'}" tiene un saldo actual de ${fmtMXN(balance)}, el cual es menor al monto del pago de ${fmtMXN(p.rule.amount)}.\n\nPor favor, revisa tus fondos o edita la programación de este pago para seleccionar otra cuenta con el saldo requerido.`,
+          [{ text: 'Entendido' }]
+        );
+        return;
+      }
+    }
+
     const newTx = {
       id: 'tx-rec-' + p.rule.id + '-' + p.date,
       type: p.rule.type,
@@ -884,8 +983,6 @@ export function DashboardScreen() {
           {order.map(renderCard)}
         </ScrollView>
 
-        {/* Removed redundant subtotal boxes */}
-
         {/* Quick actions row 1 */}
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
           <QuickAction icon="arrow-down" color="green" label="Ingreso" onPress={() => navigate({ screen: 'add-transaction', type: 'INCOME' })} />
@@ -902,10 +999,61 @@ export function DashboardScreen() {
           <QuickAction icon="cog" color="indigo" label="Ajustes" onPress={() => navigate('settings')} />
         </View>
 
-        {/* Próximos pagos */}
+        {/* Score de Salud Financiera */}
+        <View style={{ marginTop: 16 }}>
+          <SectionTitle title="Salud Financiera" />
+          <Pressable
+            onPress={() => setShowHealthSheet(true)}
+            style={({ pressed }) => [{
+              opacity: pressed ? 0.9 : 1,
+              marginTop: 8,
+            }]}
+          >
+            <Card padding={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              {/* Gauge */}
+              <View style={{ width: 56, height: 56, justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                <Svg width={56} height={56} viewBox="0 0 56 56" style={{ transform: [{ rotate: '-90deg' }] }}>
+                  <Circle
+                    cx={28}
+                    cy={28}
+                    r={23}
+                    stroke={t.border}
+                    strokeWidth={4.5}
+                    fill="transparent"
+                  />
+                  <Circle
+                    cx={28}
+                    cy={28}
+                    r={23}
+                    stroke={healthScore.score >= 75 ? t.green : healthScore.score >= 50 ? t.orange : t.rose}
+                    strokeWidth={4.5}
+                    fill="transparent"
+                    strokeDasharray={2 * Math.PI * 23}
+                    strokeDashoffset={(2 * Math.PI * 23) - ((2 * Math.PI * 23) * healthScore.score) / 100}
+                    strokeLinecap="round"
+                  />
+                </Svg>
+                <Text style={{ position: 'absolute', fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text }}>
+                  {healthScore.score}
+                </Text>
+              </View>
+              {/* Description */}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text }}>
+                  {healthScore.score >= 75 ? 'Excelente' : healthScore.score >= 50 ? 'Estable' : 'En Riesgo'}
+                </Text>
+                <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted, marginTop: 3, lineHeight: 14 }}>
+                  {healthScore.advice}
+                </Text>
+              </View>
+            </Card>
+          </Pressable>
+        </View>
+
+        {/* Próximos movimientos */}
         {nextPayments.length > 0 ? (
           <View style={{ marginTop: 18 }}>
-            <SectionTitle title="Próximos pagos" action="Ver todo" onAction={() => navigate('calendar')} />
+            <SectionTitle title="Próximos movimientos" action="Ver todo" onAction={() => navigate('calendar')} />
             <Card padding={4} style={{ marginTop: 10 }}>
               {nextPayments.map((p, i) => {
                 const cat = p.rule.categoryId ? catById(p.rule.categoryId, state.customCategories) : undefined;
@@ -1098,9 +1246,11 @@ export function DashboardScreen() {
             ) : recentTxs.map((tx, i) => (
               <TransactionRow
                 key={tx.id} tx={tx} accounts={state.accounts}
+                goals={goals}
                 customCategories={state.customCategories}
                 divider={i < recentTxs.length - 1}
                 onPress={() => navigate({ screen: 'transaction-detail', id: tx.id })}
+                onLongPress={() => setActiveTx(tx)}
               />
             ))}
           </View>
@@ -1537,11 +1687,16 @@ export function DashboardScreen() {
                       key={tx.id}
                       tx={tx}
                       accounts={state.accounts}
+                      goals={goals}
                       customCategories={state.customCategories}
                       divider={i < sectionTxs.length - 1}
                       onPress={() => {
                         setDetailSection(null);
                         navigate({ screen: 'transaction-detail', id: tx.id });
+                      }}
+                      onLongPress={() => {
+                        setDetailSection(null);
+                        setActiveTx(tx);
                       }}
                     />
                   ))
@@ -1550,6 +1705,312 @@ export function DashboardScreen() {
             </View>
           </ScrollView>
         )}
+      </Sheet>
+
+      {/* Quick Actions Context Menu Sheet */}
+      <Sheet open={activeTx !== null} onClose={() => setActiveTx(null)} height="38%">
+        {activeTx && (() => {
+          const cat = activeTx.categoryId ? catById(activeTx.categoryId, state.customCategories) : undefined;
+          const isIncome = activeTx.type === 'INCOME';
+          const isTransfer = activeTx.type === 'TRANSFER';
+          const amtColor = isIncome ? t.green : isTransfer ? t.indigo : t.text;
+          const sign = isIncome ? '+' : isTransfer ? '' : '-';
+          
+          return (
+            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+                letterSpacing: -0.3, marginBottom: 16,
+              }}>Acciones Rápidas</Text>
+              
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 14,
+                padding: 16, borderRadius: 18, backgroundColor: t.surfaceAlt,
+                borderWidth: 1, borderColor: t.border, marginBottom: 20,
+              }}>
+                <View style={{
+                  width: 46, height: 46, borderRadius: 14,
+                  backgroundColor: softFor(t, isIncome ? 'green' : isTransfer ? 'indigo' : 'rose'),
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name={isTransfer ? 'transfer' : isIncome ? 'arrow-down' : 'arrow-up'} size={22} color={isIncome ? t.green : isTransfer ? t.indigo : t.rose} strokeWidth={2.2} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.text,
+                  }}>{activeTx.note || (isTransfer ? 'Transferencia' : cat?.name || 'Sin categoría')}</Text>
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted,
+                    marginTop: 2,
+                  }}>
+                    {isTransfer ? 'Transferencia de cuenta' : cat?.name || 'Gasto'}
+                  </Text>
+                </View>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 16,
+                  color: amtColor,
+                  fontVariant: ['tabular-nums'],
+                }}>
+                  {sign}{fmtMXN(activeTx.amount).replace('-', '')}
+                </Text>
+              </View>
+
+              <View style={{ gap: 10 }}>
+                <Pressable
+                  onPress={() => {
+                    const tx = activeTx;
+                    setActiveTx(null);
+                    navigate({ screen: 'add-transaction', id: tx.id, type: tx.type });
+                  }}
+                  style={({ pressed }) => [{
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                    backgroundColor: t.indigo,
+                    alignItems: 'center',
+                    flexDirection: 'row', justifyContent: 'center', gap: 8,
+                    opacity: pressed ? 0.85 : 1,
+                  }]}
+                >
+                  <Icon name="edit" size={18} color="#fff" strokeWidth={2.5} />
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold',
+                    fontSize: 14,
+                    color: '#fff',
+                  }}>
+                    Editar Movimiento
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    const txId = activeTx.id;
+                    setActiveTx(null);
+                    Alert.alert(
+                      'Eliminar Movimiento',
+                      '¿Estás seguro de que deseas eliminar este movimiento permanentemente?',
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Eliminar',
+                          style: 'destructive',
+                          onPress: () => {
+                            dispatch({ type: 'DELETE_TX', id: txId });
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  style={({ pressed }) => [{
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                    backgroundColor: 'transparent',
+                    borderWidth: 1, borderColor: t.rose,
+                    alignItems: 'center',
+                    flexDirection: 'row', justifyContent: 'center', gap: 8,
+                    opacity: pressed ? 0.75 : 1,
+                  }]}
+                >
+                  <Icon name="trash" size={18} color={t.rose} strokeWidth={2.5} />
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold',
+                    fontSize: 14,
+                    color: t.rose,
+                  }}>
+                    Eliminar Movimiento
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })()}
+      </Sheet>
+
+      {/* Financial Health Details Sheet */}
+      <Sheet open={showHealthSheet} onClose={() => setShowHealthSheet(false)} height="75%">
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 16,
+          }}>Análisis de Salud Financiera</Text>
+
+          {/* Large circular gauge card */}
+          <View style={{
+            alignItems: 'center', padding: 20, borderRadius: 24,
+            backgroundColor: softFor(t, healthScore.score >= 75 ? 'green' : healthScore.score >= 50 ? 'orange' : 'rose'),
+            marginBottom: 20, borderWidth: 1,
+            borderColor: (healthScore.score >= 75 ? t.green : healthScore.score >= 50 ? t.orange : t.rose) + '22',
+          }}>
+            <View style={{ width: 80, height: 80, justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+              <Svg width={80} height={80} viewBox="0 0 80 80" style={{ transform: [{ rotate: '-90deg' }] }}>
+                <Circle cx={40} cy={40} r={34} stroke={t.surface} strokeWidth={6} fill="transparent" />
+                <Circle
+                  cx={40} cy={40} r={34}
+                  stroke={healthScore.score >= 75 ? t.green : healthScore.score >= 50 ? t.orange : t.rose}
+                  strokeWidth={6} fill="transparent"
+                  strokeDasharray={2 * Math.PI * 34}
+                  strokeDashoffset={(2 * Math.PI * 34) - ((2 * Math.PI * 34) * healthScore.score) / 100}
+                  strokeLinecap="round"
+                />
+              </Svg>
+              <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 22, color: t.text }}>
+                  {healthScore.score}
+                </Text>
+              </View>
+            </View>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18,
+              color: healthScore.score >= 75 ? t.green : healthScore.score >= 50 ? t.orange : t.rose,
+              marginTop: 10,
+            }}>
+              Nivel: {healthScore.score >= 75 ? 'Excelente' : healthScore.score >= 50 ? 'Estable' : 'En Riesgo'}
+            </Text>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
+              textAlign: 'center', marginTop: 6, lineHeight: 16,
+            }}>
+              Tu puntuación se calcula en base a tus presupuestos, tu hábito de ahorro y tu nivel de deuda.
+            </Text>
+          </View>
+
+          {/* Breakdown Section */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 12,
+          }}>DESGLOSE DE PUNTUACIÓN</Text>
+
+          {/* Row 1: Budgets */}
+          <View style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <View style={{
+                  width: 32, height: 32, borderRadius: 10,
+                  backgroundColor: softFor(t, 'rose'),
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name="tag" size={16} color={t.rose} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>Control de Presupuestos</Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted }}>
+                    {healthScore.totalBudgetLimit > 0
+                      ? `Límite: ${fmtMXN(healthScore.totalBudgetSpent)} de ${fmtMXN(healthScore.totalBudgetLimit)}`
+                      : 'Sin presupuestos activos'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text }}>
+                {healthScore.budgetScore} / 40 pts
+              </Text>
+            </View>
+            {/* Progress bar */}
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: t.border, overflow: 'hidden' }}>
+              <View style={{
+                height: 6, borderRadius: 3,
+                backgroundColor: healthScore.budgetScore >= 30 ? t.green : healthScore.budgetScore >= 15 ? t.orange : t.rose,
+                width: `${(healthScore.budgetScore / 40) * 100}%`,
+              }} />
+            </View>
+          </View>
+
+          {/* Row 2: Savings */}
+          <View style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <View style={{
+                  width: 32, height: 32, borderRadius: 10,
+                  backgroundColor: softFor(t, 'green'),
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name="piggy" size={16} color={t.green} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>Hábito de Ahorro</Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted }}>
+                    {healthScore.totalIncome > 0
+                      ? `Ahorro mensual: ${fmtMXN(healthScore.totalSaved)} (Ingresos: ${fmtMXN(healthScore.totalIncome)})`
+                      : `Total ahorrado: ${fmtMXN(healthScore.totalSaved)}`}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text }}>
+                {healthScore.savingsScore} / 30 pts
+              </Text>
+            </View>
+            {/* Progress bar */}
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: t.border, overflow: 'hidden' }}>
+              <View style={{
+                height: 6, borderRadius: 3,
+                backgroundColor: healthScore.savingsScore >= 20 ? t.green : healthScore.savingsScore >= 10 ? t.orange : t.rose,
+                width: `${(healthScore.savingsScore / 30) * 100}%`,
+              }} />
+            </View>
+          </View>
+
+          {/* Row 3: Credit Utilization */}
+          <View style={{ marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <View style={{
+                  width: 32, height: 32, borderRadius: 10,
+                  backgroundColor: softFor(t, 'indigo'),
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon name="wallet" size={16} color={t.indigo} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>Uso de Crédito</Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted }}>
+                    {healthScore.creditLimit > 0
+                      ? `Uso: ${fmtMXN(healthScore.creditUsed)} de ${fmtMXN(healthScore.creditLimit)}`
+                      : 'Sin tarjetas de crédito activas'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text }}>
+                {healthScore.creditScore} / 30 pts
+              </Text>
+            </View>
+            {/* Progress bar */}
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: t.border, overflow: 'hidden' }}>
+              <View style={{
+                height: 6, borderRadius: 3,
+                backgroundColor: healthScore.creditScore >= 20 ? t.green : healthScore.creditScore >= 10 ? t.orange : t.rose,
+                width: `${(healthScore.creditScore / 30) * 100}%`,
+              }} />
+            </View>
+          </View>
+
+          {/* Advice Card */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+            letterSpacing: 0.3, marginBottom: 10,
+          }}>RECOMENDACIÓN DEL DÍA</Text>
+          <View style={{
+            padding: 16, borderRadius: 18,
+            backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
+            flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+          }}>
+            <View style={{
+              width: 30, height: 30, borderRadius: 10,
+              backgroundColor: softFor(t, healthScore.score >= 75 ? 'green' : healthScore.score >= 50 ? 'orange' : 'rose'),
+              alignItems: 'center', justifyContent: 'center', marginTop: 2,
+            }}>
+              <Icon
+                name={healthScore.score >= 75 ? 'check' : 'bell'}
+                size={15}
+                color={healthScore.score >= 75 ? t.green : healthScore.score >= 50 ? t.orange : t.rose}
+                strokeWidth={3}
+              />
+            </View>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.text,
+              flex: 1, lineHeight: 18,
+            }}>
+              {healthScore.advice}
+            </Text>
+          </View>
+        </ScrollView>
       </Sheet>
     </View>
   );

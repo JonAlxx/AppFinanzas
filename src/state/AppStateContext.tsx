@@ -3,6 +3,7 @@ import { AppNotification, AppState } from '../data/types';
 import { materializeRecurring, upcomingPayments } from '../data/selectors';
 import { Action, initialState, reducer } from './reducer';
 import { saveState } from './persistence';
+import { scheduleRecurringNotifications } from '../utils/notifications';
 
 interface AppStateContextValue {
   state: AppState;
@@ -91,6 +92,33 @@ export function AppStateProvider({
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  // Sync and schedule native notifications globally whenever state changes
+  useEffect(() => {
+    scheduleRecurringNotifications(
+      state.recurring,
+      state.transactions,
+      state.accounts,
+      state.pushNotificationsEnabled ?? true,
+      state.notificationDaysBefore ?? 3,
+      state.notificationHour ?? 9,
+      state.notificationMinute ?? 0,
+      state.notificationHour2 ?? 21,
+      state.notificationMinute2 ?? 0,
+      state.notificationFrequency ?? 'twice'
+    );
+  }, [
+    state.recurring,
+    state.transactions,
+    state.accounts,
+    state.pushNotificationsEnabled,
+    state.notificationDaysBefore,
+    state.notificationHour,
+    state.notificationMinute,
+    state.notificationHour2,
+    state.notificationMinute2,
+    state.notificationFrequency,
+  ]);
 
   return (
     <AppStateContext.Provider value={{ state, dispatch }}>

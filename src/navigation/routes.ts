@@ -23,7 +23,8 @@ export type Route =
   | { screen: 'add-category'; id?: string }
   | { screen: 'help' }
   | { screen: 'security' }
-  | { screen: 'profile' };
+  | { screen: 'profile' }
+  | { screen: 'notification-settings' };
 
 export type ScreenId = Route['screen'];
 
