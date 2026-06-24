@@ -60,7 +60,9 @@ function NetworkMark({ network, color = '#fff' }: { network?: string; color?: st
 
 export function BankCard({ acc, balance, onPress, compact, isHidden }: BankCardProps) {
   const { t } = useTheme();
-  const brand = acc.brand ? brandFor(acc.brand) : undefined;
+  const brand = acc.brand === 'custom' || (acc.brand && acc.brand.startsWith('brand-custom-'))
+    ? { bg: acc.customBrandColor || '#1E293B', text: '#FFFFFF', short: acc.customBrandName || 'Banco', name: acc.customBrandName || 'Banco', logo: undefined }
+    : (acc.brand ? brandFor(acc.brand) : undefined);
   const isCC = acc.type === 'CREDIT_CARD';
 
   const Wrapper = onPress ? Pressable : View;

@@ -236,6 +236,55 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                     }}>{isHidden ? '••••' : fmtMXN(acc.limit - Math.abs(balance))}</Text>
                   </View>
                 </View>
+
+                {(acc.statementDay || acc.paymentDay) ? (
+                  <>
+                    <View style={{ height: 1, backgroundColor: t.border, marginVertical: 14 }} />
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
+                      {acc.statementDay ? (
+                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <View style={{
+                            width: 28, height: 28, borderRadius: 8, backgroundColor: softFor(t, 'indigo'),
+                            alignItems: 'center', justifyContent: 'center'
+                          }}>
+                            <Icon name="calendar" size={14} color={t.indigo} />
+                          </View>
+                          <View>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted }}>
+                              DÍA DE CORTE
+                            </Text>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text, marginTop: 1 }}>
+                              Día {acc.statementDay}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <View style={{ flex: 1 }} />
+                      )}
+                      
+                      {acc.paymentDay ? (
+                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <View style={{
+                            width: 28, height: 28, borderRadius: 8, backgroundColor: softFor(t, 'rose'),
+                            alignItems: 'center', justifyContent: 'center'
+                          }}>
+                            <Icon name="cash" size={14} color={t.rose} />
+                          </View>
+                          <View>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted }}>
+                              DÍA DE PAGO
+                            </Text>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text, marginTop: 1 }}>
+                              Día {acc.paymentDay}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <View style={{ flex: 1 }} />
+                      )}
+                    </View>
+                  </>
+                ) : null}
               </>
             ) : (
               <View style={{ marginTop: 8 }}>

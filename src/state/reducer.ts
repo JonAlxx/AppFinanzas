@@ -32,6 +32,9 @@ export type Action =
   | { type: 'IMPORT_STATE'; state: AppState }
   | { type: 'TOGGLE_PUSH_NOTIFICATIONS' }
   | { type: 'UPDATE_NOTIFICATION_SETTINGS'; daysBefore: number; hour: number; minute: number; hour2: number; minute2: number; frequency: 'once' | 'twice' | string }
+  | { type: 'ADD_CUSTOM_BRAND'; brand: { id: string; name: string; color: string } }
+  | { type: 'UPDATE_CUSTOM_BRAND'; brand: { id: string; name: string; color: string } }
+  | { type: 'DELETE_CUSTOM_BRAND'; id: string }
   | { type: 'RESET' };
 
 export function initialState(dark = false): AppState {
@@ -61,6 +64,7 @@ export function initialState(dark = false): AppState {
     notificationHour2: 21,
     notificationMinute2: 0,
     notificationFrequency: 'twice',
+    customBrands: [],
   };
 }
 
@@ -240,6 +244,7 @@ export function reducer(state: AppState, action: Action): AppState {
         notificationHour2: action.state.notificationHour2 ?? 21,
         notificationMinute2: action.state.notificationMinute2 ?? 0,
         notificationFrequency: action.state.notificationFrequency ?? 'twice',
+        customBrands: action.state.customBrands ?? [],
       };
     }
     case 'TOGGLE_PUSH_NOTIFICATIONS':
@@ -253,6 +258,21 @@ export function reducer(state: AppState, action: Action): AppState {
         notificationHour2: action.hour2,
         notificationMinute2: action.minute2,
         notificationFrequency: action.frequency,
+      };
+    case 'ADD_CUSTOM_BRAND':
+      return {
+        ...state,
+        customBrands: [...(state.customBrands || []), action.brand],
+      };
+    case 'UPDATE_CUSTOM_BRAND':
+      return {
+        ...state,
+        customBrands: (state.customBrands || []).map(b => b.id === action.brand.id ? action.brand : b),
+      };
+    case 'DELETE_CUSTOM_BRAND':
+      return {
+        ...state,
+        customBrands: (state.customBrands || []).filter(b => b.id !== action.id),
       };
     case 'RESET':
       return initialState(state.dark);

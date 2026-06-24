@@ -453,6 +453,7 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
           }
           setShowAccountPicker(false);
         }}
+        onAddAccount={() => navigate({ screen: 'add-account' })}
       />
       <Sheet open={showDestPicker} onClose={() => setShowDestPicker(false)} height="75%">
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 30 }}>

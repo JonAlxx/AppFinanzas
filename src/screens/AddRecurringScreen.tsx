@@ -585,6 +585,7 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
         selected={accountId}
         onSelect={(id) => { setAccountId(id); setShowAccountPicker(false); }}
         title="Elige cuenta"
+        onAddAccount={() => navigate({ screen: 'add-account' })}
       />
 
       <Sheet open={showDayMonthSheet} onClose={() => setShowDayMonthSheet(false)} height="60%">

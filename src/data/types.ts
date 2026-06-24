@@ -39,6 +39,10 @@ export interface Account {
   limit?: number;
   brand?: string;
   network?: NetworkType;
+  statementDay?: number;
+  paymentDay?: number;
+  customBrandName?: string;
+  customBrandColor?: string;
 }
 
 export interface Transaction {
@@ -131,6 +135,7 @@ export interface AppState {
   notificationHour2?: number;
   notificationMinute2?: number;
   notificationFrequency?: 'once' | 'twice' | string;
+  customBrands?: { id: string; name: string; color: string }[];
 }
 
 export interface MonthPoint {

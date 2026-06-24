@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, Pressable, ScrollView, Text, TextInput, View, KeyboardAvoidingView, Platform } from 'react-native';
+import { Image, Pressable, ScrollView, Text, TextInput, View, KeyboardAvoidingView, Platform, Modal, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { BRANDS } from '../data/catalog';
@@ -57,6 +57,65 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
   const [brand, setBrand] = useState<string | null>(editing?.brand || null);
   const [last4, setLast4] = useState(editing?.last4 || '');
   const [network, setNetwork] = useState<NetworkType | null>(editing?.network || null);
+  const [statementDay, setStatementDay] = useState(editing?.statementDay ? String(editing.statementDay) : '');
+  const [paymentDay, setPaymentDay] = useState(editing?.paymentDay ? String(editing.paymentDay) : '');
+  const [customBrandName, setCustomBrandName] = useState(editing?.customBrandName || '');
+  const [customBrandColor, setCustomBrandColor] = useState(() => {
+    if (editing?.customBrandColor) {
+      const found = COLORS.find(c => colorFor(t, c) === editing.customBrandColor);
+      return found || 'indigo';
+    }
+    return 'indigo';
+  });
+  const [showModal, setShowModal] = useState(false);
+  const [modalName, setModalName] = useState('');
+  const [modalColor, setModalColor] = useState('indigo');
+  const [editingBrandId, setEditingBrandId] = useState<string | null>(null);
+  const customBrands = state.customBrands || [];
+
+  function handleLongPressCustomBrand(cb: { id: string; name: string; color: string }) {
+    Alert.alert(
+      'Gestionar Banco',
+      `¿Qué deseas hacer con el banco "${cb.name}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Editar',
+          onPress: () => {
+            setEditingBrandId(cb.id);
+            setModalName(cb.name);
+            const foundColor = COLORS.find(c => colorFor(t, c) === cb.color) || 'indigo';
+            setModalColor(foundColor);
+            setShowModal(true);
+          }
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Eliminar Banco',
+              `¿Seguro que quieres eliminar "${cb.name}" de tus bancos guardados?`,
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Eliminar',
+                  style: 'destructive',
+                  onPress: () => {
+                    dispatch({ type: 'DELETE_CUSTOM_BRAND', id: cb.id });
+                    if (brand === cb.id) {
+                      setBrand(null);
+                      setCustomBrandName('');
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        }
+      ]
+    );
+  }
 
   const accColor = colorFor(t, color);
   const balanceNum = parseFloat(balance) || 0;
@@ -86,12 +145,18 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
     };
     if (brand) {
       newAcc.brand = brand;
+      if (brand === 'custom' || brand.startsWith('brand-custom-')) {
+        newAcc.customBrandName = customBrandName || 'Banco';
+        newAcc.customBrandColor = brand.startsWith('brand-custom-') ? (state.customBrands?.find(cb => cb.id === brand)?.color || colorFor(t, customBrandColor)) : colorFor(t, customBrandColor);
+      }
       if (isCardLike && last4) newAcc.last4 = last4;
       if (isCardLike && network) newAcc.network = network;
     }
     
-    if (isCC && limitCents !== undefined) {
-      newAcc.limit = limitCents;
+    if (isCC) {
+      if (limitCents !== undefined) newAcc.limit = limitCents;
+      if (statementDay) newAcc.statementDay = parseInt(statementDay);
+      if (paymentDay) newAcc.paymentDay = parseInt(paymentDay);
     }
 
     dispatch({ type: editing ? 'UPDATE_ACC' : 'ADD_ACC', acc: newAcc });
@@ -111,12 +176,18 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
     icon,
     ...(brand && {
       brand,
+      ...((brand === 'custom' || brand.startsWith('brand-custom-')) && {
+        customBrandName: customBrandName || 'Banco',
+        customBrandColor: brand.startsWith('brand-custom-') ? (state.customBrands?.find(cb => cb.id === brand)?.color || colorFor(t, customBrandColor)) : colorFor(t, customBrandColor),
+      }),
       ...(isCardLike && last4 && { last4 }),
       ...(isCardLike && network && { network }),
     }),
   };
   if (type === 'CREDIT_CARD') {
     previewAcc.limit = Math.round(limitNum * 100);
+    if (statementDay) previewAcc.statementDay = parseInt(statementDay);
+    if (paymentDay) previewAcc.paymentDay = parseInt(paymentDay);
   }
 
   return (
@@ -271,6 +342,73 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                 </Pressable>
               );
             })}
+
+            {customBrands.map(cb => {
+              const selected = brand === cb.id;
+              return (
+                <Pressable
+                  key={cb.id}
+                  onPress={() => {
+                    setBrand(cb.id);
+                    setCustomBrandName(cb.name);
+                    const foundColor = COLORS.find(c => colorFor(t, c) === cb.color) || 'indigo';
+                    setCustomBrandColor(foundColor);
+                  }}
+                  onLongPress={() => handleLongPressCustomBrand(cb)}
+                  style={({ pressed }) => [{
+                    height: 56, paddingHorizontal: 16, borderRadius: 12,
+                    backgroundColor: cb.color,
+                    borderWidth: selected ? 3 : 0,
+                    borderColor: '#fff',
+                    alignItems: 'center', justifyContent: 'center',
+                    minWidth: 90,
+                    opacity: pressed ? 0.85 : 1,
+                    ...(selected && {
+                      shadowColor: cb.color, shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.5, shadowRadius: 12, elevation: 6,
+                    }),
+                  }]}
+                >
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold',
+                    fontSize: cb.name.length > 6 ? 13 : 17,
+                    color: '#FFFFFF',
+                    letterSpacing: -0.3,
+                  }}>{cb.name}</Text>
+                  {selected ? (
+                    <View style={{
+                      position: 'absolute', top: -6, right: -6,
+                      width: 22, height: 22, borderRadius: 11,
+                      backgroundColor: t.indigo,
+                      alignItems: 'center', justifyContent: 'center',
+                      borderWidth: 2, borderColor: t.bg,
+                    }}>
+                      <Icon name="check" size={12} color="#fff" strokeWidth={3} />
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+
+            {/* "+" (Personalizar) chip at the very end */}
+            <Pressable
+              onPress={() => {
+                setEditingBrandId(null);
+                setModalName('');
+                setModalColor('indigo');
+                setShowModal(true);
+              }}
+              style={({ pressed }) => [{
+                height: 56, width: 56, borderRadius: 12,
+                backgroundColor: t.surfaceAlt,
+                borderWidth: 1,
+                borderColor: t.border,
+                alignItems: 'center', justifyContent: 'center',
+                opacity: pressed ? 0.8 : 1,
+              }]}
+            >
+              <Icon name="plus" size={18} color={t.textMuted} strokeWidth={3} />
+            </Pressable>
           </ScrollView>
 
           {/* Card-specific fields when brand is selected */}
@@ -383,6 +521,64 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                 }}
               />
 
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 18 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                    marginBottom: 8,
+                  }}>DÍA DE CORTE</Text>
+                  <TextInput
+                    value={statementDay}
+                    onChangeText={(v) => {
+                      const clean = v.replace(/[^0-9]/g, '');
+                      const num = parseInt(clean);
+                      if (clean === '' || (num >= 1 && num <= 31)) {
+                        setStatementDay(clean);
+                      }
+                    }}
+                    placeholder="Ej. 15"
+                    placeholderTextColor={t.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    style={{
+                      paddingVertical: 12,
+                      borderBottomWidth: 1, borderBottomColor: t.border,
+                      color: t.text, fontSize: 15,
+                      fontFamily: 'PlusJakartaSans_600SemiBold',
+                      fontVariant: ['tabular-nums'],
+                    }}
+                  />
+                </View>
+                
+                <View style={{ flex: 1 }}>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                    marginBottom: 8,
+                  }}>DÍA DE PAGO</Text>
+                  <TextInput
+                    value={paymentDay}
+                    onChangeText={(v) => {
+                      const clean = v.replace(/[^0-9]/g, '');
+                      const num = parseInt(clean);
+                      if (clean === '' || (num >= 1 && num <= 31)) {
+                        setPaymentDay(clean);
+                      }
+                    }}
+                    placeholder="Ej. 5"
+                    placeholderTextColor={t.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    style={{
+                      paddingVertical: 12,
+                      borderBottomWidth: 1, borderBottomColor: t.border,
+                      color: t.text, fontSize: 15,
+                      fontFamily: 'PlusJakartaSans_600SemiBold',
+                      fontVariant: ['tabular-nums'],
+                    }}
+                  />
+                </View>
+              </View>
+
               {limit ? (
                 <Text style={{
                   fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.indigo,
@@ -489,6 +685,125 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
         </Pressable>
       </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Custom Brand Modal */}
+      <Modal
+        visible={showModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowModal(false)}
+      >
+        <View style={{
+          flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+          justifyContent: 'center', alignItems: 'center',
+          padding: 24,
+        }}>
+          <Card padding={22} style={{ width: '100%', maxWidth: 340, borderRadius: 24 }}>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+              marginBottom: 16,
+            }}>{editingBrandId ? 'Editar Banco' : 'Crear Banco'}</Text>
+
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+              marginBottom: 8,
+            }}>NOMBRE DEL BANCO</Text>
+            <TextInput
+              value={modalName}
+              onChangeText={setModalName}
+              placeholder="Ej. Rhino Bank"
+              placeholderTextColor={t.textMuted}
+              maxLength={15}
+              style={{
+                paddingVertical: 10,
+                borderBottomWidth: 1, borderBottomColor: t.border,
+                color: t.text, fontSize: 15,
+                fontFamily: 'PlusJakartaSans_600SemiBold',
+                marginBottom: 20,
+              }}
+            />
+
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+              marginBottom: 8,
+            }}>COLOR DE LA TARJETA</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
+              {COLORS.map(c => {
+                const cVal = colorFor(t, c);
+                const selected = modalColor === c;
+                return (
+                  <Pressable
+                    key={c}
+                    onPress={() => setModalColor(c)}
+                    style={{
+                      width: 28, height: 28, borderRadius: 14,
+                      backgroundColor: cVal,
+                      borderWidth: selected ? 3 : 0,
+                      borderColor: t.surface,
+                    }}
+                  />
+                );
+              })}
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
+              <Pressable
+                onPress={() => {
+                  setEditingBrandId(null);
+                  setShowModal(false);
+                }}
+                style={{ paddingHorizontal: 16, paddingVertical: 10 }}
+              >
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.textMuted,
+                }}>Cancelar</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  if (!modalName.trim()) return;
+                  if (editingBrandId) {
+                    const updatedBrand = {
+                      id: editingBrandId,
+                      name: modalName.trim(),
+                      color: colorFor(t, modalColor),
+                    };
+                    dispatch({ type: 'UPDATE_CUSTOM_BRAND', brand: updatedBrand });
+                    if (brand === editingBrandId) {
+                      setCustomBrandName(updatedBrand.name);
+                      setCustomBrandColor(modalColor);
+                    }
+                    setEditingBrandId(null);
+                  } else {
+                    const newId = `brand-custom-${Date.now()}`;
+                    const newBrand = {
+                      id: newId,
+                      name: modalName.trim(),
+                      color: colorFor(t, modalColor),
+                    };
+                    dispatch({ type: 'ADD_CUSTOM_BRAND', brand: newBrand });
+                    setBrand(newId);
+                    setCustomBrandName(newBrand.name);
+                    setCustomBrandColor(modalColor);
+                  }
+                  setShowModal(false);
+                }}
+                disabled={!modalName.trim()}
+                style={({ pressed }) => [{
+                  paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12,
+                  backgroundColor: modalName.trim() ? t.indigo : t.border,
+                  opacity: pressed ? 0.85 : 1,
+                }]}
+              >
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: '#fff',
+                }}>{editingBrandId ? 'Guardar' : 'Agregar'}</Text>
+              </Pressable>
+            </View>
+          </Card>
+        </View>
+      </Modal>
     </View>
   );
 }

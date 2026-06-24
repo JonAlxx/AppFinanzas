@@ -20,11 +20,12 @@ export interface AccountPickerSheetProps {
   goals?: SavingsGoal[];
   selectedGoalId?: string | null;
   onSelectGoal?: (id: string) => void;
+  onAddAccount?: () => void;
 }
 
 export function AccountPickerSheet({
   open, onClose, accounts, transactions, selected, onSelect, title,
-  goals, selectedGoalId, onSelectGoal,
+  goals, selectedGoalId, onSelectGoal, onAddAccount,
 }: AccountPickerSheetProps) {
   const { t } = useTheme();
   return (
@@ -71,6 +72,34 @@ export function AccountPickerSheet({
             </Pressable>
           );
         })}
+
+        {onAddAccount && (
+          <Pressable
+            onPress={() => {
+              onClose();
+              onAddAccount();
+            }}
+            style={({ pressed }) => [{
+              flexDirection: 'row', alignItems: 'center', gap: 12,
+              paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
+              borderWidth: 1, borderStyle: 'dashed', borderColor: t.indigo,
+              backgroundColor: softFor(t, 'indigo') + '22' as any,
+              marginTop: 6, marginBottom: 8,
+              opacity: pressed ? 0.7 : 1,
+            }]}
+          >
+            <View style={{
+              width: 32, height: 32, borderRadius: 10,
+              backgroundColor: softFor(t, 'indigo'),
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon name="plus" size={16} color={t.indigo} strokeWidth={3} />
+            </View>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.indigo,
+            }}>Agregar nueva cuenta</Text>
+          </Pressable>
+        )}
 
         {goals && goals.length > 0 && (
           <View style={{ marginTop: 14 }}>
