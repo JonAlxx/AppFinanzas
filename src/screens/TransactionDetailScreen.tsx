@@ -21,16 +21,17 @@ function DetailRow({ label, value, divider }: { label: string; value: string; di
   const { t } = useTheme();
   return (
     <View style={{
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
       paddingHorizontal: 16, paddingVertical: 14,
       borderBottomWidth: divider ? 1 : 0, borderBottomColor: t.border,
     }}>
       <Text style={{
         fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 13, color: t.textMuted,
+        marginRight: 16,
       }}>{label}</Text>
-      <Text numberOfLines={1} style={{
+      <Text style={{
         fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
-        maxWidth: '60%', textAlign: 'right',
+        textAlign: 'right', flex: 1,
       }}>{value}</Text>
     </View>
   );
@@ -89,20 +90,18 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
           {isTransfer ? (
             <View style={{
               width: 64, height: 64, borderRadius: 20,
-              backgroundColor: softFor(t, 'indigo'),
+              backgroundColor: t.indigoSoft,
               alignItems: 'center', justifyContent: 'center',
             }}>
               <Icon name="transfer" size={32} color={t.indigo} />
             </View>
-          ) : isDebtAbono ? (
+          ) : (isDebtAbono || (tx.type === 'EXPENSE' && tx.categoryId === 'cat-debt')) ? (
             <View style={{
               width: 64, height: 64, borderRadius: 20,
-              backgroundColor: '#242736',
-              borderWidth: 1,
-              borderColor: '#2E3245',
+              backgroundColor: isDebtAbono ? t.blueSoft : t.roseSoft,
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Icon name="card" size={32} color={t.textMuted} strokeWidth={2} />
+              <Icon name="card" size={32} color={isDebtAbono ? t.blue : t.rose} strokeWidth={2} />
             </View>
           ) : (
             <CategoryBadge cat={cat} size={64} radius={20} iconSize={32} />

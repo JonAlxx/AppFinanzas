@@ -106,6 +106,8 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
   const [cutoffInterestRate, setCutoffInterestRate] = useState('');
   const [paymentModalStatementDay, setPaymentModalStatementDay] = useState('');
   const [paymentModalPaymentDay, setPaymentModalPaymentDay] = useState('');
+  const [showInterestModal, setShowInterestModal] = useState(false);
+  const [interestAmount, setInterestAmount] = useState('');
 
   function confirmDelete() {
     if (!acc) return;
@@ -249,33 +251,61 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
         </View>
 
         {/* Acción Principal: Registrar Pago (Ubicado justo debajo de Editar/Eliminar) */}
-        {acc.type === 'CREDIT_CARD' && balance < 0 && (
-          <Pressable
-            onPress={() => {
-              const firstLiquidAcc = state.accounts.find(a => a.type !== 'CREDIT_CARD');
-              setFromAccountId(firstLiquidAcc?.id || '');
-              setPaymentType(remainingStatementBalance > 0 ? 'total' : (remainingMinimumPayment > 0 ? 'minimum' : 'custom'));
-              setCustomPaymentAmount('');
-              setPaymentModalStatementDay(acc.statementDay ? String(acc.statementDay) : '');
-              setPaymentModalPaymentDay(acc.paymentDay ? String(acc.paymentDay) : '');
-              setShowPaymentModal(true);
-            }}
-            style={({ pressed }) => [{
-              marginTop: 10, borderRadius: 14, overflow: 'hidden',
-              opacity: pressed ? 0.9 : 1,
-            }]}
-          >
-            <LinearGradient
-              colors={[colorFor(t, acc.color), colorFor(t, acc.color) + 'cc' as any]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={{ paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+        {acc.type === 'CREDIT_CARD' && (
+          <View style={{ gap: 8, marginTop: 10 }}>
+            {balance < 0 && (
+              <Pressable
+                onPress={() => {
+                  const firstLiquidAcc = state.accounts.find(a => a.type !== 'CREDIT_CARD');
+                  setFromAccountId(firstLiquidAcc?.id || '');
+                  setPaymentType(remainingStatementBalance > 0 ? 'total' : (remainingMinimumPayment > 0 ? 'minimum' : 'custom'));
+                  setCustomPaymentAmount('');
+                  setPaymentModalStatementDay(acc.statementDay ? String(acc.statementDay) : '');
+                  setPaymentModalPaymentDay(acc.paymentDay ? String(acc.paymentDay) : '');
+                  setShowPaymentModal(true);
+                }}
+                style={({ pressed }) => [{
+                  borderRadius: 14, overflow: 'hidden',
+                  opacity: pressed ? 0.9 : 1,
+                }]}
+              >
+                <LinearGradient
+                  colors={[colorFor(t, acc.color), colorFor(t, acc.color) + 'cc' as any]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={{ paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  <Icon name="cash" size={16} color="#fff" strokeWidth={2.5} />
+                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: '#fff', letterSpacing: 0.3 }}>
+                    REGISTRAR PAGO DE TARJETA
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            )}
+
+            <Pressable
+              onPress={() => {
+                setInterestAmount('');
+                setShowInterestModal(true);
+              }}
+              style={({ pressed }) => [{
+                borderRadius: 14,
+                borderWidth: 1.5,
+                borderColor: t.rose,
+                backgroundColor: softFor(t, 'rose'),
+                paddingVertical: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                opacity: pressed ? 0.8 : 1,
+              }]}
             >
-              <Icon name="cash" size={16} color="#fff" strokeWidth={2.5} />
-              <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: '#fff', letterSpacing: 0.3 }}>
-                REGISTRAR PAGO DE TARJETA
+              <Icon name="trending-up" size={16} color={t.rose} strokeWidth={2.5} />
+              <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.rose, letterSpacing: 0.3 }}>
+                REGISTRAR INTERÉS GENERADO
               </Text>
-            </LinearGradient>
-          </Pressable>
+            </Pressable>
+          </View>
         )}
 
         {/* Detalle de Crédito si aplica */}
@@ -1125,6 +1155,107 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                   <Text style={{
                     fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: '#fff',
                   }}>Guardar</Text>
+                </Pressable>
+              </View>
+            </Card>
+          )}
+        </View>
+      </Modal>
+
+      {/* Modal: Registrar Interés Generado */}
+      <Modal
+        visible={showInterestModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowInterestModal(false)}
+      >
+        <View style={{
+          flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+          justifyContent: 'center', alignItems: 'center',
+          padding: 24,
+        }}>
+          {acc && (
+            <Card padding={22} style={{ width: '100%', maxWidth: 340, borderRadius: 24 }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+                marginBottom: 12,
+              }}>Registrar Interés</Text>
+
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted,
+                marginBottom: 16, lineHeight: 18,
+              }}>
+                Si realizaste pagos parciales o mínimos, ingresa el interés generado al corte para que se sume a tu deuda y disminuya tu crédito disponible de forma correcta.
+              </Text>
+
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+                marginBottom: 8,
+              }}>MONTO DEL INTERÉS</Text>
+              <TextInput
+                value={interestAmount}
+                onChangeText={(v) => {
+                  const clean = v.replace(/[^0-9.]/g, '');
+                  setInterestAmount(clean);
+                }}
+                placeholder="0.00"
+                placeholderTextColor={t.textMuted}
+                keyboardType="decimal-pad"
+                autoFocus
+                style={{
+                  paddingVertical: 10,
+                  borderBottomWidth: 1, borderBottomColor: t.rose,
+                  color: t.text, fontSize: 15,
+                  fontFamily: 'PlusJakartaSans_700Bold',
+                  fontVariant: ['tabular-nums'],
+                  marginBottom: 20,
+                }}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
+                <Pressable
+                  onPress={() => setShowInterestModal(false)}
+                  style={{ paddingHorizontal: 16, paddingVertical: 10 }}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.textMuted,
+                  }}>Cancelar</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    const amtVal = parseFloat(interestAmount) || 0;
+                    if (amtVal <= 0) return;
+
+                    // An interest charge on a credit card behaves as an EXPENSE (Gasto) on the card account,
+                    // which increases the debt (balance goes further negative) and reduces available credit.
+                    const interestTx = {
+                      id: 't-int-charge-' + Date.now(),
+                      type: 'EXPENSE' as const,
+                      amount: Math.round(amtVal * 100),
+                      date: Date.now(),
+                      accountId: acc.id,
+                      categoryId: 'cat-debt', // Tracked under Debt/Intereses
+                      note: `Intereses generados por financiamiento`,
+                      destinationAccountId: null,
+                      destinationGoalId: null,
+                    };
+                    dispatch({ type: 'ADD_TX', tx: interestTx });
+
+                    setShowInterestModal(false);
+                    Alert.alert('Interés registrado', `Se cargaron ${fmtMXN(Math.round(amtVal * 100))} de intereses a tu tarjeta.`);
+                  }}
+                  disabled={!(parseFloat(interestAmount) > 0)}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12,
+                    backgroundColor: t.rose,
+                    opacity: (parseFloat(interestAmount) > 0) ? (pressed ? 0.85 : 1) : 0.5,
+                  }]}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: '#fff',
+                  }}>Registrar</Text>
                 </Pressable>
               </View>
             </Card>

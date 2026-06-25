@@ -309,7 +309,7 @@ export function ReportsScreen() {
   // Filtered transactions of selected category
   const categoryTxs = useMemo(() => {
     if (!selectedCategory) return [];
-    return filteredTxs.filter(t => t.categoryId === selectedCategory.id);
+    return filteredTxs.filter(t => t.categoryId === selectedCategory.id && t.type === selectedCategory.category?.type);
   }, [filteredTxs, selectedCategory]);
 
   const totalExp = cats.reduce((s, c) => s + c.amount, 0);
@@ -373,39 +373,26 @@ export function ReportsScreen() {
           {/* Tooltip: Exact dollar details when a bar is selected */}
           {selectedPointIndex !== null && chartPoints[selectedPointIndex] && (() => {
             const pt = chartPoints[selectedPointIndex];
-            const balance = pt.income - pt.expense;
             return (
               <View style={{ 
                 flexDirection: 'row', 
                 justifyContent: 'space-between', 
                 alignItems: 'center',
-                backgroundColor: '#242736', 
+                backgroundColor: t.surfaceAlt, 
                 borderRadius: 16, 
-                padding: 12, 
+                paddingVertical: 12,
                 marginTop: 12,
                 borderWidth: 1,
-                borderColor: '#2E3245'
+                borderColor: t.border
               }}>
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, color: t.textMuted }}>Ingresos</Text>
-                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.green, marginTop: 2 }}>{fmtMXN(pt.income)}</Text>
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted, letterSpacing: 0.2 }}>INGRESOS</Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.green, marginTop: 4, fontVariant: ['tabular-nums'] }}>{fmtMXN(pt.income)}</Text>
                 </View>
-                <View style={{ width: 1, backgroundColor: t.border, height: 24 }} />
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, color: t.textMuted }}>Gastos</Text>
-                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.rose, marginTop: 2 }}>{fmtMXN(pt.expense)}</Text>
-                </View>
-                <View style={{ width: 1, backgroundColor: t.border, height: 24 }} />
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, color: t.textMuted }}>Balance</Text>
-                  <Text style={{ 
-                    fontFamily: 'PlusJakartaSans_800ExtraBold', 
-                    fontSize: 13, 
-                    color: balance >= 0 ? t.green : t.rose,
-                    marginTop: 2 
-                  }}>
-                    {balance >= 0 ? '+' : ''}{fmtMXN(balance)}
-                  </Text>
+                <View style={{ width: 1.5, backgroundColor: t.border, height: 26 }} />
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted, letterSpacing: 0.2 }}>GASTOS</Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.rose, marginTop: 4, fontVariant: ['tabular-nums'] }}>{fmtMXN(pt.expense)}</Text>
                 </View>
               </View>
             );
@@ -909,21 +896,21 @@ export function ReportsScreen() {
       {/* Category Detail Modal */}
       <Modal visible={showCategoryDetail} transparent animationType="slide" onRequestClose={() => setShowCategoryDetail(false)}>
         <Pressable 
-          style={{ flex: 1, backgroundColor: 'rgba(10, 12, 22, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
+          style={{ flex: 1, backgroundColor: 'rgba(10, 12, 22, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
           onPress={() => setShowCategoryDetail(false)}
         >
           <Pressable 
             style={{ 
               width: '100%', 
               height: '70%', 
-              backgroundColor: '#181A26', 
+              backgroundColor: t.surface, 
               borderRadius: 24, 
               padding: 20, 
               borderWidth: 1, 
-              borderColor: '#2E3245', 
+              borderColor: t.border, 
               shadowColor: '#000', 
               shadowOffset: { width: 0, height: 10 }, 
-              shadowOpacity: 0.3, 
+              shadowOpacity: 0.2, 
               shadowRadius: 20, 
               elevation: 10 
             }}
@@ -935,7 +922,7 @@ export function ReportsScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                   <CategoryBadge cat={selectedCategory.category} size={40} radius={12} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: '#fff' }}>
+                    <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text }}>
                       {selectedCategory.category?.name}
                     </Text>
                     <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted }}>

@@ -25,13 +25,15 @@ export function TransactionRow({ tx, accounts, goals = [], customCategories = []
   const dest = tx.destinationAccountId ? accounts.find(a => a.id === tx.destinationAccountId) : undefined;
   const destGoal = tx.destinationGoalId ? goals.find(g => g.id === tx.destinationGoalId) : undefined;
   const isDebtAbono = tx.type === 'INCOME' && tx.categoryId === 'cat-debt';
+  const isDebtCargo = tx.type === 'EXPENSE' && tx.categoryId === 'cat-debt';
   const isTransfer = tx.type === 'TRANSFER';
   const isIncome = tx.type === 'INCOME' && !isDebtAbono;
   const sign = isIncome || isDebtAbono ? '+' : isTransfer ? '' : '-';
-  const amtColor = isDebtAbono ? t.textMuted : isIncome ? t.green : isTransfer ? t.indigo : t.text;
+  const amtColor = isDebtAbono ? t.blue : isDebtCargo ? t.rose : isIncome ? t.green : isTransfer ? t.indigo : t.rose;
+  const isInterestCharge = isDebtCargo && (tx.note || '').toLowerCase().includes('interés');
   const subtitle = isTransfer
     ? `${acc?.name} → ${destGoal ? `Meta: ${destGoal.name}` : dest?.name}`
-    : `${isDebtAbono ? 'Abono a cuenta' : cat?.name || 'Sin categoría'} · ${acc?.name}`;
+    : `${isDebtAbono ? 'Abono a cuenta' : isInterestCharge ? 'Cargo por interés' : cat?.name || 'Sin categoría'} · ${acc?.name}`;
 
   const Wrapper = onPress || onLongPress ? Pressable : View;
   const wrapperProps: any = {};
@@ -48,20 +50,18 @@ export function TransactionRow({ tx, accounts, goals = [], customCategories = []
       {isTransfer ? (
         <View style={{
           width: 44, height: 44, borderRadius: 14,
-          backgroundColor: softFor(t, 'indigo'),
+          backgroundColor: t.indigoSoft,
           alignItems: 'center', justifyContent: 'center',
         }}>
           <Icon name="transfer" size={20} color={t.indigo} strokeWidth={2.2} />
         </View>
-      ) : isDebtAbono ? (
+      ) : (isDebtAbono || isDebtCargo) ? (
         <View style={{
           width: 44, height: 44, borderRadius: 14,
-          backgroundColor: '#242736',
-          borderWidth: 1,
-          borderColor: '#2E3245',
+          backgroundColor: isDebtAbono ? t.blueSoft : t.roseSoft,
           alignItems: 'center', justifyContent: 'center',
         }}>
-          <Icon name="card" size={20} color={t.textMuted} strokeWidth={2} />
+          <Icon name="card" size={20} color={isDebtAbono ? t.blue : t.rose} strokeWidth={2} />
         </View>
       ) : (
         <CategoryBadge cat={cat} />
