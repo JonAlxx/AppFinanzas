@@ -31,11 +31,76 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
 
   const acc = state.accounts.find(a => a.id === accountId);
 
+  const {
+    paymentsSinceCutoff,
+    remainingStatementBalance,
+    remainingMinimumPayment,
+    hasPaidMinimum,
+    hasPaidTotal
+  } = useMemo(() => {
+    if (!acc || acc.type !== 'CREDIT_CARD') {
+      return {
+        paymentsSinceCutoff: 0,
+        remainingStatementBalance: 0,
+        remainingMinimumPayment: 0,
+        hasPaidMinimum: false,
+        hasPaidTotal: false
+      };
+    }
+
+    const statementDay = acc.statementDay || 1;
+    const now = new Date();
+    let cutYear = now.getFullYear();
+    let cutMonth = now.getMonth();
+    
+    if (now.getDate() < statementDay) {
+      cutMonth -= 1;
+      if (cutMonth < 0) {
+        cutMonth = 11;
+        cutYear -= 1;
+      }
+    }
+    const cutoffDate = new Date(cutYear, cutMonth, statementDay, 0, 0, 0);
+    const cutoffMs = cutoffDate.getTime();
+
+    let totalPayments = 0;
+    for (const tx of state.transactions) {
+      if (tx.date >= cutoffMs) {
+        if (tx.type === 'TRANSFER' && tx.destinationAccountId === acc.id) {
+          totalPayments += tx.amount;
+        } else if (tx.type === 'INCOME' && tx.accountId === acc.id) {
+          totalPayments += tx.amount;
+        }
+      }
+    }
+
+    const currentBalance = computeAccountBalance(acc, state.transactions);
+    const rawDebt = Math.abs(currentBalance);
+
+    const initialStatementBalance = acc.statementBalance !== undefined ? acc.statementBalance : rawDebt;
+    const initialMinimumPayment = acc.statementMinimumPayment !== undefined 
+      ? acc.statementMinimumPayment 
+      : Math.round(initialStatementBalance * 0.05);
+
+    const remainingStatement = Math.max(0, initialStatementBalance - totalPayments);
+    const remainingMin = Math.max(0, initialMinimumPayment - totalPayments);
+
+    return {
+      paymentsSinceCutoff: totalPayments,
+      remainingStatementBalance: remainingStatement,
+      remainingMinimumPayment: remainingMin,
+      hasPaidMinimum: totalPayments >= initialMinimumPayment && initialMinimumPayment > 0,
+      hasPaidTotal: totalPayments >= initialStatementBalance && initialStatementBalance > 0
+    };
+  }, [acc, state.transactions]);
+
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'total' | 'minimum' | 'custom'>('total');
   const [customPaymentAmount, setCustomPaymentAmount] = useState('');
   const [fromAccountId, setFromAccountId] = useState('');
   const [showCutoffModal, setShowCutoffModal] = useState(false);
+  const [showDatesSection, setShowDatesSection] = useState(false);
+  const [showUseSection, setShowUseSection] = useState(true);
   const [cutoffAmount, setCutoffAmount] = useState('');
   const [cutoffMinimumPayment, setCutoffMinimumPayment] = useState('');
   const [cutoffInterestRate, setCutoffInterestRate] = useState('');
@@ -183,210 +248,238 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
           </Pressable>
         </View>
 
+        {/* Acción Principal: Registrar Pago (Ubicado justo debajo de Editar/Eliminar) */}
+        {acc.type === 'CREDIT_CARD' && balance < 0 && (
+          <Pressable
+            onPress={() => {
+              const firstLiquidAcc = state.accounts.find(a => a.type !== 'CREDIT_CARD');
+              setFromAccountId(firstLiquidAcc?.id || '');
+              setPaymentType(remainingStatementBalance > 0 ? 'total' : (remainingMinimumPayment > 0 ? 'minimum' : 'custom'));
+              setCustomPaymentAmount('');
+              setPaymentModalStatementDay(acc.statementDay ? String(acc.statementDay) : '');
+              setPaymentModalPaymentDay(acc.paymentDay ? String(acc.paymentDay) : '');
+              setShowPaymentModal(true);
+            }}
+            style={({ pressed }) => [{
+              marginTop: 10, borderRadius: 14, overflow: 'hidden',
+              opacity: pressed ? 0.9 : 1,
+            }]}
+          >
+            <LinearGradient
+              colors={[colorFor(t, acc.color), colorFor(t, acc.color) + 'cc' as any]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
+              <Icon name="cash" size={16} color="#fff" strokeWidth={2.5} />
+              <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: '#fff', letterSpacing: 0.3 }}>
+                REGISTRAR PAGO DE TARJETA
+              </Text>
+            </LinearGradient>
+          </Pressable>
+        )}
+
         {/* Detalle de Crédito si aplica */}
         {acc.type === 'CREDIT_CARD' && (
-          <Card padding={16} style={{ marginTop: 14 }}>
-            <SectionTitle title="Detalle de Crédito" />
-            
+          <>
             {acc.limit ? (
               <>
-                <View style={{ marginTop: 8, marginBottom: 16 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Text style={{
-                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
-                    }}>Progreso de uso</Text>
-                    <Text style={{
-                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text,
-                      fontVariant: ['tabular-nums'],
-                    }}>
-                      {((Math.abs(balance) / acc.limit) * 100).toFixed(0)}% usado
-                    </Text>
-                  </View>
-                  <ProgressBar
-                    pct={(Math.abs(balance) / acc.limit) * 100}
-                    color={acc.color || 'rose'}
-                    height={8}
-                  />
-                </View>
-
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{
-                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
-                      letterSpacing: 0.2,
-                    }}>LÍMITE</Text>
-                    <Text numberOfLines={1} style={{
-                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text,
-                      marginTop: 4, fontVariant: ['tabular-nums'],
-                    }}>{isHidden ? '••••' : fmtMXN(acc.limit)}</Text>
-                  </View>
-                  
-                  <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={{
-                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.rose,
-                      letterSpacing: 0.2,
-                    }}>USADO (DEUDA)</Text>
-                    <Text numberOfLines={1} style={{
-                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.rose,
-                      marginTop: 4, fontVariant: ['tabular-nums'],
-                    }}>{isHidden ? '••••' : fmtMXN(Math.abs(balance))}</Text>
-                  </View>
-
-                  <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={{
-                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.green,
-                      letterSpacing: 0.2,
-                    }}>DISPONIBLE</Text>
-                    <Text numberOfLines={1} style={{
-                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.green,
-                      marginTop: 4, fontVariant: ['tabular-nums'],
-                    }}>{isHidden ? '••••' : fmtMXN(acc.limit - Math.abs(balance))}</Text>
-                  </View>
-                </View>
-
-                {(acc.statementDay || acc.paymentDay) ? (
-                  <>
-                    <View style={{ height: 1, backgroundColor: t.border, marginVertical: 14 }} />
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
-                      {acc.statementDay ? (
-                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <View style={{
-                            width: 28, height: 28, borderRadius: 8, backgroundColor: softFor(t, 'indigo'),
-                            alignItems: 'center', justifyContent: 'center'
-                          }}>
-                            <Icon name="calendar" size={14} color={t.indigo} />
-                          </View>
-                          <View>
-                            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted }}>
-                              DÍA DE CORTE
-                            </Text>
-                            <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text, marginTop: 1 }}>
-                              Día {acc.statementDay}
-                            </Text>
-                          </View>
-                        </View>
-                      ) : (
-                        <View style={{ flex: 1 }} />
-                      )}
-                      
-                      {acc.paymentDay ? (
-                        <Pressable
-                          onPress={() => {
-                            if (balance < 0) {
-                              const firstLiquidAcc = state.accounts.find(a => a.type !== 'CREDIT_CARD');
-                              setFromAccountId(firstLiquidAcc?.id || '');
-                              setPaymentType('total');
-                              setCustomPaymentAmount('');
-                              setPaymentModalStatementDay(acc.statementDay ? String(acc.statementDay) : '');
-                              setPaymentModalPaymentDay(acc.paymentDay ? String(acc.paymentDay) : '');
-                              setShowPaymentModal(true);
-                            } else {
-                              Alert.alert('Sin deuda', 'Esta tarjeta no tiene saldo deudor que pagar.');
-                            }
-                          }}
-                          style={({ pressed }) => [{
-                            flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
-                            opacity: pressed ? 0.7 : 1,
-                          }]}
-                        >
-                          <View style={{
-                            width: 28, height: 28, borderRadius: 8, backgroundColor: softFor(t, 'rose'),
-                            alignItems: 'center', justifyContent: 'center'
-                          }}>
-                            <Icon name="cash" size={14} color={t.rose} />
-                          </View>
-                          <View>
-                            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted }}>
-                              DÍA DE PAGO
-                            </Text>
-                            <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.indigo, marginTop: 1 }}>
-                              Día {acc.paymentDay} ➔
-                            </Text>
-                          </View>
-                        </Pressable>
-                      ) : (
-                        <View style={{ flex: 1 }} />
-                      )}
-                    </View>
-                  </>
-                ) : null}
-
-                {(acc.statementDay || acc.paymentDay) && (
-                  <>
-                    <View style={{ height: 1, backgroundColor: t.border, marginVertical: 14 }} />
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted, letterSpacing: 0.2 }}>
-                          SALDO AL CORTE REGISTRADO
-                        </Text>
-                        <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: acc.statementBalance ? t.indigo : t.textSubtle, marginTop: 4, fontVariant: ['tabular-nums'] }}>
-                          {acc.statementBalance ? fmtMXN(acc.statementBalance) : 'Sin registrar'}
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => {
-                          setCutoffAmount(acc.statementBalance ? (acc.statementBalance / 100).toFixed(2) : '');
-                          setCutoffMinimumPayment(acc.statementMinimumPayment ? (acc.statementMinimumPayment / 100).toFixed(2) : '');
-                          setCutoffInterestRate(acc.interestRate ? String(acc.interestRate) : '');
-                          setShowCutoffModal(true);
-                        }}
-                        style={({ pressed }) => [{
-                          paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
-                          backgroundColor: softFor(t, 'indigo'),
-                          opacity: pressed ? 0.8 : 1,
-                        }]}
-                      >
-                        <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.indigo }}>
-                          {acc.statementBalance ? 'Ajustar' : 'Ingresar'}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </>
-                )}
-
-                {balance < 0 && (
+                {/* Módulo 1: Uso del Crédito (Colapsable) */}
+                <Card padding={16} style={{ marginTop: 14 }}>
                   <Pressable
-                    onPress={() => {
-                      const firstLiquidAcc = state.accounts.find(a => a.type !== 'CREDIT_CARD');
-                      setFromAccountId(firstLiquidAcc?.id || '');
-                      setPaymentType('total');
-                      setCustomPaymentAmount('');
-                      setPaymentModalStatementDay(acc.statementDay ? String(acc.statementDay) : '');
-                      setPaymentModalPaymentDay(acc.paymentDay ? String(acc.paymentDay) : '');
-                      setShowPaymentModal(true);
-                    }}
-                    style={({ pressed }) => [{
-                      marginTop: 14, borderRadius: 12, overflow: 'hidden',
-                      opacity: pressed ? 0.9 : 1,
-                    }]}
+                    onPress={() => setShowUseSection(!showUseSection)}
+                    style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                   >
-                    <LinearGradient
-                      colors={[colorFor(t, acc.color), colorFor(t, acc.color) + 'cc' as any]}
-                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                      style={{ paddingVertical: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                    >
-                      <Icon name="cash" size={14} color="#fff" strokeWidth={2.5} />
-                      <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: '#fff', letterSpacing: 0.2 }}>
-                        REGISTRAR PAGO DE TARJETA
-                      </Text>
-                    </LinearGradient>
+                    <SectionTitle title="Uso del Crédito" />
+                    <Icon name={showUseSection ? "chevron-up" : "chevron-down"} size={18} color={t.textMuted} />
                   </Pressable>
+                  
+                  {showUseSection && (
+                    <>
+                      <View style={{ marginTop: 12, marginBottom: 16 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                          }}>Progreso de uso</Text>
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text,
+                            fontVariant: ['tabular-nums'],
+                          }}>
+                            {((Math.abs(balance) / acc.limit) * 100).toFixed(0)}% usado
+                          </Text>
+                        </View>
+                        <ProgressBar
+                          pct={(Math.abs(balance) / acc.limit) * 100}
+                          color={acc.color || 'rose'}
+                          height={8}
+                        />
+                      </View>
+
+                      <View style={{ flexDirection: 'row', gap: 10 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
+                            letterSpacing: 0.2,
+                          }}>LÍMITE</Text>
+                          <Text numberOfLines={1} style={{
+                            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text,
+                            marginTop: 4, fontVariant: ['tabular-nums'],
+                          }}>{isHidden ? '••••' : fmtMXN(acc.limit)}</Text>
+                        </View>
+                        
+                        <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
+
+                        <View style={{ flex: 1 }}>
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.rose,
+                            letterSpacing: 0.2,
+                          }}>USADO (DEUDA)</Text>
+                          <Text numberOfLines={1} style={{
+                            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.rose,
+                            marginTop: 4, fontVariant: ['tabular-nums'],
+                          }}>{isHidden ? '••••' : fmtMXN(Math.abs(balance))}</Text>
+                        </View>
+
+                        <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
+
+                        <View style={{ flex: 1 }}>
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.green,
+                            letterSpacing: 0.2,
+                          }}>DISPONIBLE</Text>
+                          <Text numberOfLines={1} style={{
+                            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.green,
+                            marginTop: 4, fontVariant: ['tabular-nums'],
+                          }}>{isHidden ? '••••' : fmtMXN(acc.limit - Math.abs(balance))}</Text>
+                        </View>
+                      </View>
+                    </>
+                  )}
+                </Card>
+
+                {/* Módulo 2: Fechas y Estado de Cuenta (Colapsable) */}
+                {(acc.statementDay || acc.paymentDay) && (
+                  <Card padding={16} style={{ marginTop: 14 }}>
+                    <Pressable
+                      onPress={() => setShowDatesSection(!showDatesSection)}
+                      style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      <SectionTitle title="Fechas y Estado de Cuenta" />
+                      <Icon name={showDatesSection ? "chevron-up" : "chevron-down"} size={18} color={t.textMuted} />
+                    </Pressable>
+                    
+                    {showDatesSection && (
+                      <>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 12 }}>
+                          {acc.statementDay ? (
+                            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <View style={{
+                                width: 28, height: 28, borderRadius: 8, backgroundColor: softFor(t, 'indigo'),
+                                alignItems: 'center', justifyContent: 'center'
+                              }}>
+                                <Icon name="calendar" size={14} color={t.indigo} />
+                              </View>
+                              <View>
+                                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted }}>
+                                  DÍA DE CORTE
+                                </Text>
+                                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text, marginTop: 1 }}>
+                                  Día {acc.statementDay}
+                                </Text>
+                              </View>
+                            </View>
+                          ) : (
+                            <View style={{ flex: 1 }} />
+                          )}
+                          
+                          {acc.paymentDay ? (
+                            <Pressable
+                              onPress={() => {
+                                if (balance < 0) {
+                                  const firstLiquidAcc = state.accounts.find(a => a.type !== 'CREDIT_CARD');
+                                  setFromAccountId(firstLiquidAcc?.id || '');
+                                  setPaymentType(remainingStatementBalance > 0 ? 'total' : (remainingMinimumPayment > 0 ? 'minimum' : 'custom'));
+                                  setCustomPaymentAmount('');
+                                  setPaymentModalStatementDay(acc.statementDay ? String(acc.statementDay) : '');
+                                  setPaymentModalPaymentDay(acc.paymentDay ? String(acc.paymentDay) : '');
+                                  setShowPaymentModal(true);
+                                } else {
+                                  Alert.alert('Sin deuda', 'Esta tarjeta no tiene saldo deudor que pagar.');
+                                }
+                              }}
+                              style={({ pressed }) => [{
+                                flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+                                opacity: pressed ? 0.7 : 1,
+                              }]}
+                            >
+                              <View style={{
+                                width: 28, height: 28, borderRadius: 8, backgroundColor: softFor(t, 'rose'),
+                                alignItems: 'center', justifyContent: 'center'
+                              }}>
+                                <Icon name="cash" size={14} color={t.rose} />
+                              </View>
+                              <View>
+                                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted }}>
+                                  DÍA DE PAGO
+                                </Text>
+                                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.indigo, marginTop: 1 }}>
+                                  Día {acc.paymentDay} ➔
+                                </Text>
+                              </View>
+                            </Pressable>
+                          ) : (
+                            <View style={{ flex: 1 }} />
+                          )}
+                        </View>
+
+                        <View style={{ height: 1, backgroundColor: t.border, marginVertical: 14 }} />
+                        
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted, letterSpacing: 0.2 }}>
+                              SALDO AL CORTE REGISTRADO
+                            </Text>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: acc.statementBalance ? t.indigo : t.textSubtle, marginTop: 4, fontVariant: ['tabular-nums'] }}>
+                              {acc.statementBalance ? (
+                                remainingStatementBalance === 0
+                                  ? '✅ ¡Liquidado!'
+                                  : `${fmtMXN(remainingStatementBalance)} de ${fmtMXN(acc.statementBalance)}`
+                              ) : 'Sin registrar'}
+                            </Text>
+                          </View>
+                          <Pressable
+                            onPress={() => {
+                              setCutoffAmount(acc.statementBalance ? (acc.statementBalance / 100).toFixed(2) : '');
+                              setCutoffMinimumPayment(acc.statementMinimumPayment ? (acc.statementMinimumPayment / 100).toFixed(2) : '');
+                              setCutoffInterestRate(acc.interestRate ? String(acc.interestRate) : '');
+                              setShowCutoffModal(true);
+                            }}
+                            style={({ pressed }) => [{
+                              paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
+                              backgroundColor: softFor(t, 'indigo'),
+                              opacity: pressed ? 0.8 : 1,
+                            }]}
+                          >
+                            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.indigo }}>
+                              {acc.statementBalance ? 'Ajustar' : 'Ingresar'}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </>
+                    )}
+                  </Card>
                 )}
               </>
             ) : (
               <View style={{ marginTop: 8 }}>
                 <Text style={{
                   fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: t.textMuted,
+                  textAlign: 'center', paddingVertical: 20
                 }}>
-                  Límite de crédito no configurado.
+                  Ingresa un límite de crédito para ver los detalles.
                 </Text>
               </View>
             )}
-          </Card>
+          </>
         )}
 
         {/* Stats 30d */}
@@ -602,27 +695,32 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
             {/* Option A: Pago Total */}
             <Pressable
               onPress={() => setPaymentType('total')}
+              disabled={hasPaidTotal}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 12,
                 padding: 12, borderRadius: 12, borderWidth: 1,
-                borderColor: paymentType === 'total' ? t.green : t.border,
-                backgroundColor: paymentType === 'total' ? softFor(t, 'green') : 'transparent',
+                borderColor: hasPaidTotal ? t.border : (paymentType === 'total' ? t.green : t.border),
+                backgroundColor: hasPaidTotal ? t.surfaceAlt : (paymentType === 'total' ? softFor(t, 'green') : 'transparent'),
                 marginBottom: 8,
+                opacity: hasPaidTotal ? 0.65 : 1,
               }}
             >
               <View style={{
                 width: 18, height: 18, borderRadius: 9, borderWidth: 2,
-                borderColor: paymentType === 'total' ? t.green : t.textMuted,
+                borderColor: hasPaidTotal ? t.textSubtle : (paymentType === 'total' ? t.green : t.textMuted),
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                {paymentType === 'total' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.green }} />}
+                {paymentType === 'total' && !hasPaidTotal && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.green }} />}
+                {hasPaidTotal && <Icon name="check" size={10} color={t.green} strokeWidth={3} />}
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>
-                  {acc.statementBalance ? 'Pago para no generar intereses (Saldo al Corte)' : 'Pago para no generar intereses'}
+                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: hasPaidTotal ? t.textMuted : t.text }}>
+                  {hasPaidTotal 
+                    ? 'Saldo al Corte liquidado' 
+                    : (acc.statementBalance ? 'Pago para no generar intereses (Saldo al Corte)' : 'Pago para no generar intereses')}
                 </Text>
-                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.green, marginTop: 2, fontVariant: ['tabular-nums'] }}>
-                  {fmtMXN(acc.statementBalance ? acc.statementBalance : Math.abs(balance))}
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: hasPaidTotal ? t.textMuted : t.green, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                  {hasPaidTotal ? 'Pagado' : fmtMXN(remainingStatementBalance)}
                 </Text>
               </View>
             </Pressable>
@@ -630,27 +728,32 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
             {/* Option B: Pago Mínimo */}
             <Pressable
               onPress={() => setPaymentType('minimum')}
+              disabled={hasPaidMinimum}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 12,
                 padding: 12, borderRadius: 12, borderWidth: 1,
-                borderColor: paymentType === 'minimum' ? t.yellow : t.border,
-                backgroundColor: paymentType === 'minimum' ? softFor(t, 'yellow') : 'transparent',
+                borderColor: hasPaidMinimum ? t.border : (paymentType === 'minimum' ? t.yellow : t.border),
+                backgroundColor: hasPaidMinimum ? t.surfaceAlt : (paymentType === 'minimum' ? softFor(t, 'yellow') : 'transparent'),
                 marginBottom: 8,
+                opacity: hasPaidMinimum ? 0.65 : 1,
               }}
             >
               <View style={{
                 width: 18, height: 18, borderRadius: 9, borderWidth: 2,
-                borderColor: paymentType === 'minimum' ? t.yellow : t.textMuted,
+                borderColor: hasPaidMinimum ? t.textSubtle : (paymentType === 'minimum' ? t.yellow : t.textMuted),
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                {paymentType === 'minimum' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.yellow }} />}
+                {paymentType === 'minimum' && !hasPaidMinimum && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.yellow }} />}
+                {hasPaidMinimum && <Icon name="check" size={10} color={t.green} strokeWidth={3} />}
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>
-                  {acc.statementMinimumPayment ? 'Pago mínimo de tu estado' : 'Pago mínimo sugerido (5%)'}
+                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: hasPaidMinimum ? t.textMuted : t.text }}>
+                  {hasPaidMinimum 
+                    ? 'Pago mínimo cubierto' 
+                    : (acc.statementMinimumPayment ? 'Pago mínimo de tu estado' : 'Pago mínimo sugerido (5%)')}
                 </Text>
-                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.yellow, marginTop: 2, fontVariant: ['tabular-nums'] }}>
-                  {fmtMXN(acc.statementMinimumPayment ? acc.statementMinimumPayment : (acc.statementBalance ? acc.statementBalance : Math.abs(balance)) * 0.05)}
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: hasPaidMinimum ? t.textMuted : t.yellow, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                  {hasPaidMinimum ? 'Cubierto' : fmtMXN(remainingMinimumPayment)}
                 </Text>
               </View>
             </Pressable>
@@ -699,12 +802,18 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
 
             {/* Interest Warning Logic */}
             {(() => {
-              const debt = acc.statementBalance ? (acc.statementBalance / 100) : (Math.abs(balance) / 100);
+              const debt = remainingStatementBalance / 100;
               let paidVal = 0;
               if (paymentType === 'total') paidVal = debt;
               else if (paymentType === 'minimum') {
-                paidVal = acc.statementMinimumPayment ? (acc.statementMinimumPayment / 100) : debt * 0.05;
+                paidVal = remainingMinimumPayment / 100;
               } else paidVal = parseFloat(customPaymentAmount) || 0;
+
+              // Hide interest warning if there is an active insufficient balance warning to avoid screen clutter
+              const selectedAcc = state.accounts.find(a => a.id === fromAccountId);
+              const bal = selectedAcc ? computeAccountBalance(selectedAcc, state.transactions) : 0;
+              const paidValCents = Math.round(paidVal * 100);
+              if (bal < paidValCents) return null;
 
               const remaining = Math.max(0, debt - paidVal);
               if (remaining > 0) {
@@ -773,71 +882,115 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
               })}
             </ScrollView>
 
+            {/* Insufficient balance warning */}
+            {(() => {
+              const selectedAcc = state.accounts.find(a => a.id === fromAccountId);
+              if (!selectedAcc) return null;
+              const bal = computeAccountBalance(selectedAcc, state.transactions);
+              const debt = remainingStatementBalance / 100;
+              let paidVal = 0;
+              if (paymentType === 'total') paidVal = debt;
+              else if (paymentType === 'minimum') {
+                paidVal = remainingMinimumPayment / 100;
+              } else paidVal = parseFloat(customPaymentAmount) || 0;
+              const paidValCents = Math.round(paidVal * 100);
+              if (bal < paidValCents) {
+                return (
+                  <View style={{
+                    backgroundColor: softFor(t, 'rose'), padding: 10, borderRadius: 10,
+                    marginBottom: 16, borderWidth: 1, borderColor: t.rose + '22' as any,
+                  }}>
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.rose }}>
+                      ⚠️ SALDO INSUFICIENTE
+                    </Text>
+                    <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.rose, marginTop: 4, lineHeight: 14 }}>
+                      La cuenta seleccionada no tiene saldo suficiente para cubrir este pago de {fmtMXN(paidValCents)}. Saldo disponible: {fmtMXN(bal)}.
+                    </Text>
+                  </View>
+                );
+              }
+              return null;
+            })()}
+
             {/* Confirm button */}
-            {acc && (
-              <Pressable
-                onPress={() => {
-                  const debt = acc.statementBalance ? (acc.statementBalance / 100) : (Math.abs(balance) / 100);
-                  let paidVal = 0;
-                  if (paymentType === 'total') paidVal = debt;
-                  else if (paymentType === 'minimum') {
-                    paidVal = acc.statementMinimumPayment ? (acc.statementMinimumPayment / 100) : debt * 0.05;
-                  } else paidVal = parseFloat(customPaymentAmount) || 0;
+            {acc && (() => {
+              const debt = remainingStatementBalance / 100;
+              let paidVal = 0;
+              if (paymentType === 'total') paidVal = debt;
+              else if (paymentType === 'minimum') {
+                paidVal = remainingMinimumPayment / 100;
+              } else paidVal = parseFloat(customPaymentAmount) || 0;
 
-                  if (paidVal <= 0 || !fromAccountId) return;
+              const selectedAcc = state.accounts.find(a => a.id === fromAccountId);
+              const selectedAccBal = selectedAcc ? computeAccountBalance(selectedAcc, state.transactions) : 0;
+              const paidValCents = Math.round(paidVal * 100);
+              const isDisabled = paidVal <= 0 || !fromAccountId || selectedAccBal < paidValCents;
 
-                  // Create transfer transaction representing card payment
-                  const tx = {
-                    id: 't' + Date.now(),
-                    type: 'TRANSFER' as const,
-                    amount: Math.round(paidVal * 100),
-                    date: Date.now(),
-                    accountId: fromAccountId,
-                    destinationAccountId: acc.id,
-                    note: paymentType === 'total' ? 'Pago total de tarjeta' : `Pago parcial de tarjeta`,
-                    categoryId: null,
-                    destinationGoalId: null,
-                  };
+              return (
+                <Pressable
+                  onPress={() => {
+                    if (isDisabled) return;
 
-                  dispatch({ type: 'ADD_TX', tx });
-                  
-                  // Update account: clear statement balance if fully paid, and save billing dates if entered
-                  const updatedAcc = {
-                    ...acc,
-                    ...( (paymentType === 'total' || paidVal >= debt) && { statementBalance: undefined } ),
-                    ...((paymentModalStatementDay && !acc.statementDay) && { statementDay: parseInt(paymentModalStatementDay) }),
-                    ...((paymentModalPaymentDay && !acc.paymentDay) && { paymentDay: parseInt(paymentModalPaymentDay) }),
-                  };
-                  dispatch({ type: 'UPDATE_ACC', acc: updatedAcc });
+                    // Create paired transactions to track the payment as an EXPENSE (Gasto) under the Deudas category,
+                    // and credit the card with an INCOME (Abono) to reduce its debt.
+                    const expenseTx = {
+                      id: 't-exp-' + Date.now(),
+                      type: 'EXPENSE' as const,
+                      amount: Math.round(paidVal * 100),
+                      date: Date.now(),
+                      accountId: fromAccountId,
+                      categoryId: 'cat-debt',
+                      note: paymentType === 'total' 
+                        ? `Pago de tarjeta (Total): ${acc.name}` 
+                        : `Pago de tarjeta (Parcial): ${acc.name}`,
+                      destinationAccountId: null,
+                      destinationGoalId: null,
+                    };
+                    dispatch({ type: 'ADD_TX', tx: expenseTx });
 
-                  setShowPaymentModal(false);
-                  Alert.alert('Pago registrado', `Se registró el pago por ${fmtMXN(Math.round(paidVal * 100))} desde tu cuenta.`);
-                }}
-                disabled={(() => {
-                  const debt = acc.statementBalance ? (acc.statementBalance / 100) : (Math.abs(balance) / 100);
-                  let paidVal = 0;
-                  if (paymentType === 'total') paidVal = debt;
-                  else if (paymentType === 'minimum') {
-                    paidVal = acc.statementMinimumPayment ? (acc.statementMinimumPayment / 100) : debt * 0.05;
-                  } else paidVal = parseFloat(customPaymentAmount) || 0;
-                  return paidVal <= 0 || !fromAccountId;
-                })()}
-                style={({ pressed }) => [{
-                  borderRadius: 14, overflow: 'hidden',
-                  opacity: pressed ? 0.85 : 1,
-                }]}
-              >
-                <LinearGradient
-                  colors={[t.indigo, t.violet]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={{ paddingVertical: 12, alignItems: 'center' }}
+                    const incomeTx = {
+                      id: 't-inc-' + Date.now(),
+                      type: 'INCOME' as const,
+                      amount: Math.round(paidVal * 100),
+                      date: Date.now(),
+                      accountId: acc.id,
+                      categoryId: 'cat-debt',
+                      note: `Abono por pago recibido`,
+                      destinationAccountId: null,
+                      destinationGoalId: null,
+                    };
+                    dispatch({ type: 'ADD_TX', tx: incomeTx });
+                    
+                    // Update account: clear statement balance and minimum payment if fully paid, and save billing dates if entered
+                    const updatedAcc = {
+                      ...acc,
+                      ...( (paymentType === 'total' || paidVal >= debt) && { statementBalance: undefined, statementMinimumPayment: undefined } ),
+                      ...((paymentModalStatementDay && !acc.statementDay) && { statementDay: parseInt(paymentModalStatementDay) }),
+                      ...((paymentModalPaymentDay && !acc.paymentDay) && { paymentDay: parseInt(paymentModalPaymentDay) }),
+                    };
+                    dispatch({ type: 'UPDATE_ACC', acc: updatedAcc });
+
+                    setShowPaymentModal(false);
+                    Alert.alert('Pago registrado', `Se registró el pago por ${fmtMXN(Math.round(paidVal * 100))} desde tu cuenta.`);
+                  }}
+                  disabled={isDisabled}
+                  style={({ pressed }) => [{
+                    borderRadius: 14, overflow: 'hidden',
+                    opacity: isDisabled ? 0.5 : (pressed ? 0.85 : 1),
+                  }]}
                 >
-                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: '#fff', letterSpacing: 0.2 }}>
-                    CONFIRMAR PAGO
-                  </Text>
-                </LinearGradient>
-              </Pressable>
-            )}
+                  <LinearGradient
+                    colors={isDisabled ? [t.border, t.border] : [t.indigo, t.violet]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={{ paddingVertical: 12, alignItems: 'center' }}
+                  >
+                    <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: '#fff', letterSpacing: 0.2 }}>
+                      CONFIRMAR PAGO
+                    </Text>
+                  </LinearGradient>
+                </Pressable>
+              );
+            })()}
             </ScrollView>
           </View>
         </View>

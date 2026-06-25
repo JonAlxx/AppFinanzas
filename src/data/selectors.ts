@@ -59,7 +59,10 @@ export function computeTotalsForAccounts(total: number, accountIds: string[], tx
   for (const t of txs) {
     if (t.date < since) continue;
     if (!ids.has(t.accountId)) continue;
-    if (t.type === 'INCOME') income += t.amount;
+    if (t.type === 'INCOME') {
+      if (t.categoryId === 'cat-debt') continue; // Exclude credit card abonos (debt payments) from income totals
+      income += t.amount;
+    }
     if (t.type === 'EXPENSE') expense += t.amount;
   }
   return { total, income, expense };
@@ -104,6 +107,7 @@ export function dailySeries(txs: Transaction[], days = 7, type: 'EXPENSE' | 'INC
     let sum = 0;
     for (const t of txs) {
       if (t.type !== type) continue;
+      if (type === 'INCOME' && t.categoryId === 'cat-debt') continue; // Exclude credit card abonos from daily income series
       if (t.date >= d.getTime() && t.date < next) sum += t.amount;
     }
     series.push({ date: d.getTime(), amount: sum });
@@ -268,7 +272,10 @@ export function monthlySeries(txs: Transaction[], months = 6): MonthPoint[] {
     let inc = 0, exp = 0;
     for (const t of txs) {
       if (t.date < d.getTime() || t.date >= next) continue;
-      if (t.type === 'INCOME') inc += t.amount;
+      if (t.type === 'INCOME') {
+        if (t.categoryId === 'cat-debt') continue; // Exclude credit card abonos from monthly income totals
+        inc += t.amount;
+      }
       if (t.type === 'EXPENSE') exp += t.amount;
     }
     out.push({ month: NAMES[d.getMonth()], income: inc, expense: exp });

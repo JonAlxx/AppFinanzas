@@ -58,13 +58,14 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
   const cat = tx.categoryId ? catById(tx.categoryId, state.customCategories) : undefined;
   const acc = state.accounts.find(a => a.id === tx.accountId);
   const dest = tx.destinationAccountId ? state.accounts.find(a => a.id === tx.destinationAccountId) : undefined;
-  const isIncome = tx.type === 'INCOME';
+  const isDebtAbono = tx.type === 'INCOME' && tx.categoryId === 'cat-debt';
   const isTransfer = tx.type === 'TRANSFER';
-  const sign = isIncome ? '+' : isTransfer ? '' : '-';
-  const color = isIncome ? t.green : isTransfer ? t.indigo : t.rose;
+  const isIncome = tx.type === 'INCOME' && !isDebtAbono;
+  const sign = isIncome || isDebtAbono ? '+' : isTransfer ? '' : '-';
+  const color = isDebtAbono ? t.textMuted : isIncome ? t.green : isTransfer ? t.indigo : t.rose;
 
   const detailRows: { label: string; value: string }[] = [
-    { label: 'Categoría', value: cat?.name || (isTransfer ? '—' : 'Sin categoría') },
+    { label: 'Categoría', value: isDebtAbono ? 'Abono a cuenta' : (cat?.name || (isTransfer ? '—' : 'Sin categoría')) },
     { label: isTransfer ? 'Desde' : 'Cuenta', value: acc?.name || '—' },
   ];
   if (dest) detailRows.push({ label: 'Hacia', value: dest.name });
@@ -93,13 +94,23 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
             }}>
               <Icon name="transfer" size={32} color={t.indigo} />
             </View>
+          ) : isDebtAbono ? (
+            <View style={{
+              width: 64, height: 64, borderRadius: 20,
+              backgroundColor: '#242736',
+              borderWidth: 1,
+              borderColor: '#2E3245',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon name="card" size={32} color={t.textMuted} strokeWidth={2} />
+            </View>
           ) : (
             <CategoryBadge cat={cat} size={64} radius={20} iconSize={32} />
           )}
           <Text style={{
             fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.textMuted,
             textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 14,
-          }}>{isIncome ? 'Ingreso' : isTransfer ? 'Transferencia' : 'Gasto'}</Text>
+          }}>{isDebtAbono ? 'Abono a cuenta' : isIncome ? 'Ingreso' : isTransfer ? 'Transferencia' : 'Gasto'}</Text>
           <Text style={{
             fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color,
             letterSpacing: -1.2, marginTop: 4,

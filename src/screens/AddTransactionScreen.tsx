@@ -90,7 +90,20 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
   const acc = state.accounts.find(a => a.id === accountId);
   const dest = state.accounts.find(a => a.id === destAccountId);
   const amtNum = parseFloat(amount) || 0;
-  const canSave = amtNum > 0 && !!accountId && (type === 'TRANSFER' ? destAccountId && (targetGoalId ? true : destAccountId !== accountId) : !!categoryId);
+  const amtCents = Math.round(amtNum * 100);
+
+  const availableFunds = useMemo(() => {
+    if (!acc) return 0;
+    const bal = computeAccountBalance(acc, state.transactions);
+    if (acc.type === 'CREDIT_CARD') {
+      return (acc.limit || 0) + bal;
+    }
+    return bal;
+  }, [acc, state.transactions]);
+
+  const hasSufficientFunds = type === 'INCOME' || availableFunds >= amtCents;
+
+  const canSave = amtNum > 0 && !!accountId && hasSufficientFunds && (type === 'TRANSFER' ? destAccountId && (targetGoalId ? true : destAccountId !== accountId) : !!categoryId);
 
   const typeColor = type === 'INCOME' ? t.green : type === 'EXPENSE' ? t.rose : t.indigo;
 
@@ -108,18 +121,50 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
 
   function save() {
     if (!canSave) { triggerShake(); return; }
-    const tx = {
-      id: editingId || ('t' + Date.now()),
-      type,
-      amount: Math.round(amtNum * 100),
-      date,
-      accountId,
-      categoryId: type === 'TRANSFER' ? null : categoryId,
-      destinationAccountId: type === 'TRANSFER' ? destAccountId : null,
-      note: note || null,
-      destinationGoalId: (type === 'TRANSFER' || type === 'INCOME') ? targetGoalId : null,
-    };
-    dispatch({ type: editingId ? 'UPDATE_TX' : 'ADD_TX', tx });
+
+    const isTransferToCreditCard = type === 'TRANSFER' && dest?.type === 'CREDIT_CARD';
+
+    if (isTransferToCreditCard && !editingId) {
+      // Automatically convert transfer to credit card into paired card payment transactions
+      const expenseTx = {
+        id: 't-exp-' + Date.now(),
+        type: 'EXPENSE' as const,
+        amount: Math.round(amtNum * 100),
+        date,
+        accountId,
+        categoryId: 'cat-debt',
+        note: note || `Pago de tarjeta: ${dest.name}`,
+        destinationAccountId: null,
+        destinationGoalId: null,
+      };
+      dispatch({ type: 'ADD_TX', tx: expenseTx });
+
+      const incomeTx = {
+        id: 't-inc-' + (Date.now() + 1),
+        type: 'INCOME' as const,
+        amount: Math.round(amtNum * 100),
+        date,
+        accountId: destAccountId,
+        categoryId: 'cat-debt',
+        note: `Abono por pago recibido`,
+        destinationAccountId: null,
+        destinationGoalId: null,
+      };
+      dispatch({ type: 'ADD_TX', tx: incomeTx });
+    } else {
+      const tx = {
+        id: editingId || ('t' + Date.now()),
+        type,
+        amount: Math.round(amtNum * 100),
+        date,
+        accountId,
+        categoryId: type === 'TRANSFER' ? null : categoryId,
+        destinationAccountId: type === 'TRANSFER' ? destAccountId : null,
+        note: note || null,
+        destinationGoalId: (type === 'TRANSFER' || type === 'INCOME') ? targetGoalId : null,
+      };
+      dispatch({ type: editingId ? 'UPDATE_TX' : 'ADD_TX', tx });
+    }
 
     back();
   }
@@ -183,6 +228,17 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
                    }}>.00</Text>
                  )}
                </View>
+                {!hasSufficientFunds && amtNum > 0 ? (
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold',
+                    fontSize: 12,
+                    color: t.rose,
+                    textAlign: 'center',
+                    marginTop: 6,
+                  }}>
+                    {acc?.type === 'CREDIT_CARD' ? 'Límite de crédito insuficiente' : 'Saldo insuficiente'} en {acc?.name}
+                  </Text>
+                ) : null}
              </Animated.View>
 
             {/* Hidden TextInput overlay covering the entire amount area to intercept taps natively */}
@@ -297,38 +353,66 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
           </FormRow>
 
           {type === 'TRANSFER' ? (
-            <FormRow icon="arrow-up-right" label="Hacia" onPress={() => setShowDestPicker(true)}>
-              {targetGoalId && state.goals.find(g => g.id === targetGoalId) ? (() => {
-                const g = state.goals.find(x => x.id === targetGoalId)!;
-                const gAcc = state.accounts.find(a => a.id === g.accountId);
-                return (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
-                    <View style={{
-                      width: 28, height: 28, borderRadius: 9,
-                      backgroundColor: softFor(t, g.color),
-                      alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      <Icon name={g.icon} size={15} color={colorFor(t, g.color)} />
+            <>
+              <FormRow icon="arrow-up-right" label="Hacia" onPress={() => setShowDestPicker(true)}>
+                {targetGoalId && state.goals.find(g => g.id === targetGoalId) ? (() => {
+                  const g = state.goals.find(x => x.id === targetGoalId)!;
+                  const gAcc = state.accounts.find(a => a.id === g.accountId);
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                      <View style={{
+                        width: 28, height: 28, borderRadius: 9,
+                        backgroundColor: softFor(t, g.color),
+                        alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <Icon name={g.icon} size={15} color={colorFor(t, g.color)} />
+                      </View>
+                      <Text numberOfLines={1} style={{
+                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
+                        flexShrink: 1,
+                      }}>
+                        Meta: {g.name} <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', color: t.textMuted }}>({gAcc?.name})</Text>
+                      </Text>
                     </View>
+                  );
+                })() : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                    <AccountBadge acc={dest} size={28} radius={9} />
                     <Text numberOfLines={1} style={{
                       fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
                       flexShrink: 1,
-                    }}>
-                      Meta: {g.name} <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', color: t.textMuted }}>({gAcc?.name})</Text>
-                    </Text>
+                    }}>{dest?.name}</Text>
                   </View>
-                );
-              })() : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
-                  <AccountBadge acc={dest} size={28} radius={9} />
-                  <Text numberOfLines={1} style={{
-                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
-                    flexShrink: 1,
-                  }}>{dest?.name}</Text>
+                )}
+              </FormRow>
+              {dest?.type === 'CREDIT_CARD' ? (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  backgroundColor: '#1E293B',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginTop: 6,
+                  marginBottom: 10,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                }}>
+                  <Icon name="card" size={15} color={t.indigo} />
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_600SemiBold',
+                    fontSize: 11.5,
+                    color: t.textMuted,
+                    flex: 1,
+                    lineHeight: 15,
+                  }}>
+                    Has seleccionado una tarjeta de crédito (TDC). Esta transferencia se registrará automáticamente como pago a tarjeta (gasto y abono).
+                  </Text>
                 </View>
-              )}
-            </FormRow>
+              ) : null}
+            </>
           ) : null}
 
           <FormRow icon="calendar" label="Fecha">
@@ -401,10 +485,29 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
       {/* Sheets */}
       <Sheet open={showCatSheet} onClose={() => setShowCatSheet(false)} height="80%">
         <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 }}>
-          <Text style={{
-            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
-            letterSpacing: -0.3, marginBottom: 14,
-          }}>Elige una categoría</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+              letterSpacing: -0.3,
+            }}>Elige una categoría</Text>
+            <Pressable
+              onPress={() => {
+                setShowCatSheet(false);
+                navigate({ screen: 'add-category' });
+              }}
+              style={({ pressed }) => [{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: softFor(t, 'indigo'),
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.7 : 1,
+              }]}
+            >
+              <Icon name="plus" size={18} color={colorFor(t, 'indigo')} strokeWidth={2.5} />
+            </Pressable>
+          </View>
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingBottom: 20 }}>
               {cats.map(c => (
