@@ -59,6 +59,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
   const [network, setNetwork] = useState<NetworkType | null>(editing?.network || null);
   const [statementDay, setStatementDay] = useState(editing?.statementDay ? String(editing.statementDay) : '');
   const [paymentDay, setPaymentDay] = useState(editing?.paymentDay ? String(editing.paymentDay) : '');
+  const [interestRate, setInterestRate] = useState(editing?.interestRate ? String(editing.interestRate) : '');
   const [customBrandName, setCustomBrandName] = useState(editing?.customBrandName || '');
   const [customBrandColor, setCustomBrandColor] = useState(() => {
     if (editing?.customBrandColor) {
@@ -157,6 +158,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
       if (limitCents !== undefined) newAcc.limit = limitCents;
       if (statementDay) newAcc.statementDay = parseInt(statementDay);
       if (paymentDay) newAcc.paymentDay = parseInt(paymentDay);
+      if (interestRate) newAcc.interestRate = parseFloat(interestRate);
     }
 
     dispatch({ type: editing ? 'UPDATE_ACC' : 'ADD_ACC', acc: newAcc });
@@ -188,6 +190,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
     previewAcc.limit = Math.round(limitNum * 100);
     if (statementDay) previewAcc.statementDay = parseInt(statementDay);
     if (paymentDay) previewAcc.paymentDay = parseInt(paymentDay);
+    if (interestRate) previewAcc.interestRate = parseFloat(interestRate);
   }
 
   return (
@@ -578,6 +581,32 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                   />
                 </View>
               </View>
+
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                marginTop: 18, marginBottom: 8,
+              }}>TASA DE INTERÉS ANUAL (CAT %)</Text>
+              <TextInput
+                value={interestRate}
+                onChangeText={(v) => {
+                  const clean = v.replace(/[^0-9.]/g, '');
+                  const parts = clean.split('.');
+                  const normalized = parts.length > 2
+                    ? parts[0] + '.' + parts.slice(1).join('')
+                    : clean;
+                  setInterestRate(normalized.slice(0, 5));
+                }}
+                placeholder="Ej. 55.0"
+                placeholderTextColor={t.textMuted}
+                keyboardType="decimal-pad"
+                style={{
+                  paddingVertical: 12,
+                  borderBottomWidth: 1, borderBottomColor: t.border,
+                  color: t.text, fontSize: 15,
+                  fontFamily: 'PlusJakartaSans_600SemiBold',
+                  fontVariant: ['tabular-nums'],
+                }}
+              />
 
               {limit ? (
                 <Text style={{

@@ -43,6 +43,9 @@ export interface Account {
   paymentDay?: number;
   customBrandName?: string;
   customBrandColor?: string;
+  statementBalance?: number;
+  interestRate?: number;
+  statementMinimumPayment?: number;
 }
 
 export interface Transaction {
