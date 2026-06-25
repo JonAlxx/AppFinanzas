@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View, Modal, TextInput } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View, Modal, TextInput, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { labelType } from '../data/catalog';
@@ -451,16 +451,40 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
       <Modal
         visible={showPaymentModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         statusBarTranslucent
         onRequestClose={() => setShowPaymentModal(false)}
       >
         <View style={{
-          flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
-          justifyContent: 'center', alignItems: 'center',
-          padding: 24,
+          flex: 1,
+          backgroundColor: 'rgba(10, 10, 12, 0.75)',
+          justifyContent: 'flex-end',
         }}>
-          <Card padding={22} style={{ width: '100%', maxWidth: 360, borderRadius: 24 }}>
+          <View style={{
+            backgroundColor: t.surface,
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            maxHeight: '88%',
+            paddingTop: 8,
+            paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -8 },
+            shadowOpacity: 0.25,
+            shadowRadius: 16,
+            elevation: 20,
+          }}>
+            {/* Grabber handle */}
+            <View style={{
+              width: 38, height: 4.5, borderRadius: 2.25,
+              backgroundColor: t.border, alignSelf: 'center',
+              marginBottom: 16, marginTop: 4,
+            }} />
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
+              keyboardShouldPersistTaps="handled"
+            >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
@@ -695,7 +719,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                       ⚠️ ALERTA DE INTERESES
                     </Text>
                     <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.rose, marginTop: 4, lineHeight: 14 }}>
-                      Quedará un saldo insoluto de <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold' }}>{fmtMXN(remaining)}</Text>. Esto generará un interés estimado de <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold' }}>{fmtMXN(estimatedInterest)}</Text> en tu próximo estado de cuenta (CAT aprox. 55% anual).
+                      Quedará un saldo insoluto de <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold' }}>{fmtMXN(Math.round(remaining * 100))}</Text>. Esto generará un interés estimado de <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold' }}>{fmtMXN(Math.round(estimatedInterest * 100))}</Text> en tu próximo estado de cuenta (CAT aprox. {acc.interestRate ?? 55}% anual).
                     </Text>
                   </View>
                 );
@@ -787,7 +811,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                   dispatch({ type: 'UPDATE_ACC', acc: updatedAcc });
 
                   setShowPaymentModal(false);
-                  Alert.alert('Pago registrado', `Se registró el pago por ${fmtMXN(paidVal)} desde tu cuenta.`);
+                  Alert.alert('Pago registrado', `Se registró el pago por ${fmtMXN(Math.round(paidVal * 100))} desde tu cuenta.`);
                 }}
                 disabled={(() => {
                   const debt = acc.statementBalance ? (acc.statementBalance / 100) : (Math.abs(balance) / 100);
@@ -814,7 +838,8 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                 </LinearGradient>
               </Pressable>
             )}
-          </Card>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
