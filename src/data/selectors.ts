@@ -116,7 +116,10 @@ export function computeTotalsForAccounts(total: number, accountIds: string[], tx
   for (const t of txs) {
     if (t.date < since) continue;
     if (!ids.has(t.accountId)) continue;
-    if (t.type === 'INCOME') income += t.amount;
+    if (t.type === 'INCOME') {
+      if (t.categoryId === 'cat-debt') continue; // Exclude credit card abonos (debt payments) from income totals
+      income += t.amount;
+    }
     if (t.type === 'EXPENSE') expense += t.amount;
   }
   return { total, income, expense };
@@ -161,6 +164,7 @@ export function dailySeries(txs: Transaction[], days = 7, type: 'EXPENSE' | 'INC
     let sum = 0;
     for (const t of txs) {
       if (t.type !== type) continue;
+      if (type === 'INCOME' && t.categoryId === 'cat-debt') continue; // Exclude credit card abonos from daily income series
       if (t.date >= d.getTime() && t.date < next) sum += t.amount;
     }
     series.push({ date: d.getTime(), amount: sum });
@@ -221,11 +225,11 @@ export function ruleOccursOnDate(rule: Recurring, dateMs: number): boolean {
       return d.getDay() === dow;
     }
     case 'biweekly': {
-      const dom = rule.dayOfMonth ?? new Date(start).getDate();
-      const secondDom = dom > 15 ? dom - 15 : dom + 15;
+      const dom1 = rule.biweeklyDay1 ?? rule.dayOfMonth ?? new Date(start).getDate();
+      const dom2 = rule.biweeklyDay2 ?? (dom1 > 15 ? dom1 - 15 : dom1 + 15);
       const maxDom = daysInMonth(d.getFullYear(), d.getMonth());
-      const effDom1 = Math.min(dom, maxDom);
-      const effDom2 = Math.min(secondDom, maxDom);
+      const effDom1 = Math.min(dom1, maxDom);
+      const effDom2 = Math.min(dom2, maxDom);
       return d.getDate() === effDom1 || d.getDate() === effDom2;
     }
     case 'yearly': {
@@ -250,14 +254,17 @@ export function dueDatesBetween(rule: Recurring, fromMs: number, toMs: number): 
 /** Returns the next occurrence at or after a given date. */
 export function nextDueAfter(rule: Recurring, fromMs: number): number | null {
   if (!rule.active) return null;
+  if (rule.frequency === 'once' && rule.lastGenerated) return null;
   const horizon = 365 * 86400000; // search up to 1 year ahead
-  const start = startOfDay(Math.max(fromMs, rule.startDate));
+  const startAfterLastGen = rule.lastGenerated ? startOfDay(rule.lastGenerated) + 86400000 : startOfDay(rule.startDate);
+  const start = startOfDay(Math.max(fromMs, startAfterLastGen));
   const end = start + horizon;
   for (let cur = start; cur <= end; cur += 86400000) {
     if (ruleOccursOnDate(rule, cur)) return cur;
   }
   return null;
 }
+
 
 export interface UpcomingPayment { rule: Recurring; date: number }
 
@@ -325,7 +332,10 @@ export function monthlySeries(txs: Transaction[], months = 6): MonthPoint[] {
     let inc = 0, exp = 0;
     for (const t of txs) {
       if (t.date < d.getTime() || t.date >= next) continue;
-      if (t.type === 'INCOME') inc += t.amount;
+      if (t.type === 'INCOME') {
+        if (t.categoryId === 'cat-debt') continue; // Exclude credit card abonos from monthly income totals
+        inc += t.amount;
+      }
       if (t.type === 'EXPENSE') exp += t.amount;
     }
     out.push({ month: NAMES[d.getMonth()], income: inc, expense: exp });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -8,6 +8,8 @@ import { SavingsGoal } from '../data/types';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Card } from '../components/Card';
 import { Icon, IconName } from '../icons/Icon';
+import { allCategories } from '../data/catalog';
+import { CategoryBadge } from '../components/Badges';
 
 const COLORS = ['rose', 'indigo', 'green', 'orange', 'teal', 'violet', 'blue', 'yellow'];
 const ICONS: IconName[] = ['target', 'smartphone', 'car', 'home', 'gift', 'briefcase', 'plane', 'piggy', 'wallet', 'sparkles'];
@@ -31,6 +33,14 @@ export function AddGoalScreen({ editingId }: AddGoalScreenProps) {
   const [icon, setIcon] = useState<IconName>(editing?.icon as IconName || 'target');
   const [yields, setYields] = useState(editing?.yields || false);
   const [yieldRate, setYieldRate] = useState(editing?.yieldRate ? editing.yieldRate.toString() : '');
+
+  // Load available categories
+  const expenseCategories = useMemo(() => {
+    const allCats = allCategories(state.customCategories);
+    return allCats.filter(c => c.type === 'EXPENSE');
+  }, [state.customCategories]);
+
+  const [categoryId, setCategoryId] = useState(editing?.categoryId || expenseCategories[0]?.id || '');
 
   // Deadline selection state
   const [hasDeadline, setHasDeadline] = useState(editing?.deadline !== null && editing?.deadline !== undefined);
@@ -94,6 +104,7 @@ export function AddGoalScreen({ editingId }: AddGoalScreenProps) {
       icon,
       yields: showYieldsOption ? yields : false,
       yieldRate: showYieldsOption && yields ? parseFloat(yieldRate) || 0 : 0,
+      categoryId: categoryId || null,
     };
 
     // If editing, account changed, and there are savings, move the savings between accounts
@@ -176,6 +187,46 @@ export function AddGoalScreen({ editingId }: AddGoalScreenProps) {
               marginBottom: 20,
             }}
           />
+
+          {/* Category Selector */}
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+            marginBottom: 10,
+          }}>CATEGORÍA DEL GASTO DESTINADO</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginHorizontal: -16, marginBottom: 20 }}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 4 }}
+          >
+            {expenseCategories.map(cat => {
+              const selected = categoryId === cat.id;
+              const bgSelected = softFor(t, cat.color);
+              const colorTheme = colorFor(t, cat.color);
+
+              return (
+                <Pressable
+                  key={cat.id}
+                  onPress={() => setCategoryId(cat.id)}
+                  style={{
+                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14,
+                    borderWidth: selected ? 2 : 1,
+                    borderColor: selected ? colorTheme : t.border,
+                    backgroundColor: selected ? bgSelected : t.surfaceAlt,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <CategoryBadge cat={cat} size={18} radius={5} />
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12,
+                    color: selected ? colorTheme : t.text,
+                  }}>{cat.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           {/* Target Amount */}
           <Text style={{

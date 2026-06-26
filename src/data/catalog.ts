@@ -34,7 +34,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat-other-exp', name: 'Otros', type: 'EXPENSE', icon: 'more', color: 'indigo' },
   { id: 'cat-salary', name: 'Sueldo', type: 'INCOME', icon: 'briefcase', color: 'green' },
   { id: 'cat-freelance', name: 'Freelance', type: 'INCOME', icon: 'laptop', color: 'indigo' },
-  { id: 'cat-gift', name: 'Regalo', type: 'INCOME', icon: 'gift', color: 'rose' },
+  { id: 'cat-gift', name: 'Regalo', type: 'INCOME', icon: 'gift', color: 'violet' },
   { id: 'cat-interest', name: 'Intereses', type: 'INCOME', icon: 'trending', color: 'teal' },
   { id: 'cat-business', name: 'Negocio', type: 'INCOME', icon: 'briefcase', color: 'blue' },
   { id: 'cat-sales', name: 'Ventas', type: 'INCOME', icon: 'bag', color: 'green' },

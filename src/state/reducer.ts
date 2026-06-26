@@ -1,4 +1,4 @@
-import { Account, AppNotification, AppState, Category, Recurring, SavingsGoal, Transaction, UserProfile } from '../data/types';
+import { Account, AppNotification, AppState, Budget, Category, Recurring, SavingsGoal, Transaction, UserProfile } from '../data/types';
 import { SEED_ACCOUNTS, SEED_BUDGETS, SEED_GOALS, SEED_NOTIFICATIONS, SEED_TRANSACTIONS } from '../data/seed';
 
 export type Action =
@@ -12,6 +12,9 @@ export type Action =
   | { type: 'UPDATE_RECURRING'; rule: Recurring }
   | { type: 'DELETE_RECURRING'; id: string }
   | { type: 'TOGGLE_RECURRING_ACTIVE'; id: string }
+  | { type: 'ADD_BUDGET'; budget: Budget }
+  | { type: 'UPDATE_BUDGET'; budget: Budget }
+  | { type: 'DELETE_BUDGET'; id: string }
   | { type: 'APPLY_MATERIALIZATION'; newTxs: Transaction[]; updatedRules: Recurring[] }
   | { type: 'ADD_GOAL'; goal: SavingsGoal }
   | { type: 'UPDATE_GOAL'; goal: SavingsGoal }
@@ -167,6 +170,12 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, goals: state.goals.map(g => g.id === action.goal.id ? action.goal : g) };
     case 'DELETE_GOAL':
       return { ...state, goals: state.goals.filter(g => g.id !== action.id) };
+    case 'ADD_BUDGET':
+      return { ...state, budgets: [...state.budgets, action.budget] };
+    case 'UPDATE_BUDGET':
+      return { ...state, budgets: state.budgets.map(b => b.id === action.budget.id ? action.budget : b) };
+    case 'DELETE_BUDGET':
+      return { ...state, budgets: state.budgets.filter(b => b.id !== action.id) };
     case 'APPLY_MATERIALIZATION': {
       const uniqueNewTxs = action.newTxs.filter(
         newTx => !state.transactions.some(existingTx => existingTx.id === newTx.id)

@@ -1,5 +1,8 @@
 # FinanzasApp 📱💼
 
+> [!NOTE]
+> **Versión Actual:** `v1.0.11` (Release). Incluye mejoras de consistencia cromática adaptativa (Modo Claro/Oscuro), creación rápida de categorías, transacciones de simulación diferidas, cobro de intereses en tarjetas de crédito y visualización de notas multilínea completas.
+
 **FinanzasApp** es una aplicación móvil premium de finanzas personales desarrollada en **React Native** utilizando **Expo**. Está diseñada para permitir a los usuarios gestionar sus ingresos, gastos, transferencias entre cuentas, presupuestos y metas de ahorro de forma local y segura, con una experiencia visual fluida, moderna y adaptada al mercado mexicano.
 
 ---

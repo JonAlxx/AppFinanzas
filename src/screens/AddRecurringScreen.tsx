@@ -547,10 +547,29 @@ export function AddRecurringScreen({ editingId }: AddRecurringScreenProps) {
 
       <Sheet open={showCatSheet} onClose={() => setShowCatSheet(false)} height="80%">
         <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 }}>
-          <Text style={{
-            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
-            letterSpacing: -0.3, marginBottom: 14,
-          }}>Elige una categoría</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <Text style={{
+              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+              letterSpacing: -0.3,
+            }}>Elige una categoría</Text>
+            <Pressable
+              onPress={() => {
+                setShowCatSheet(false);
+                navigate({ screen: 'add-category' });
+              }}
+              style={({ pressed }) => [{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: softFor(t, 'indigo'),
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.7 : 1,
+              }]}
+            >
+              <Icon name="plus" size={18} color={colorFor(t, 'indigo')} strokeWidth={2.5} />
+            </Pressable>
+          </View>
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingBottom: 20 }}>
               {cats.map(c => (

@@ -65,6 +65,16 @@ export interface Budget {
   id: string;
   categoryId: string;
   limit: number; // cents
+  period?: 'monthly' | 'weekly' | 'biweekly' | 'custom';
+  rollover?: number; // cents
+  prevLeftoverProcessed?: boolean;
+  customType?: 'range' | 'duration'; // 'range' (day range) or 'duration' (days/weeks)
+  customStartDay?: number; // 1-31
+  customEndDay?: number; // 1-31
+  customDurationValue?: number; // e.g. 3, 14
+  customDurationUnit?: 'days' | 'weeks';
+  customStartDate?: number; // ms timestamp
+  customWeekStartDay?: number; // 0-6 (0=Sun, 1=Mon, ..., 6=Sat)
 }
 
 export interface SavingsGoal {
@@ -78,6 +88,9 @@ export interface SavingsGoal {
   icon: string;
   yields?: boolean;
   yieldRate?: number;
+  categoryId?: string | null;
+  completed?: boolean;
+  completedDate?: number;
 }
 
 export type NotificationType = 'budget' | 'goal' | 'income' | 'tip';
@@ -109,6 +122,8 @@ export interface Recurring {
   lastGenerated?: number | null; // ms; last materialized occurrence
   active: boolean;
   subscriptionBrand?: string | null; // optional id from SUBSCRIPTION_BRANDS
+  biweeklyDay1?: number; // for custom biweekly: 1-31
+  biweeklyDay2?: number; // for custom biweekly: 1-31
 }
 
 export interface UserProfile {

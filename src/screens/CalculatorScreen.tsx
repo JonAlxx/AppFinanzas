@@ -53,7 +53,7 @@ function fmtSimDate(ms: number): string {
 export function CalculatorScreen() {
   const { t } = useTheme();
   const { state, dispatch } = useAppState();
-  const { back } = useNavigation();
+  const { back, navigate } = useNavigation();
 
   // Selected base account ID
   const [selectedBaseAccountId, setSelectedBaseAccountId] = useState<string>(() => {
@@ -71,6 +71,7 @@ export function CalculatorScreen() {
   });
 
   const [simulatedItems, setSimulatedItems] = useState<SimulatedItem[]>([]);
+  const [editingSimItemId, setEditingSimItemId] = useState<string | null>(null);
 
   // Modal sheets states
   const [showAddSheet, setShowAddSheet] = useState(false);
@@ -115,8 +116,21 @@ export function CalculatorScreen() {
 
   const netSimulatedBalance = baseSalaryNum - totalSimExpenses + totalSimIncomes;
 
+  const selectedBaseAcc = useMemo(() => {
+    return state.accounts.find(a => a.id === selectedBaseAccountId);
+  }, [state.accounts, selectedBaseAccountId]);
+
+  const isSimulationNegative = useMemo(() => {
+    if (!selectedBaseAcc) return false;
+    if (selectedBaseAcc.type === 'CREDIT_CARD') {
+      return (selectedBaseAcc.limit || 0) + netSimulatedBalance < 0;
+    }
+    return netSimulatedBalance < 0;
+  }, [selectedBaseAcc, netSimulatedBalance]);
+
   // Open the add modal sheet with defaults reset and date set to Today
   function openAddSimulation() {
+    setEditingSimItemId(null);
     setNewItemNote('');
     setNewItemAmount('');
     setNewItemType('EXPENSE');
@@ -129,8 +143,22 @@ export function CalculatorScreen() {
     setShowAddSheet(true);
   }
 
-  // Add simulated item
-  function addSimulatedItem() {
+  // Open edit modal pre-filled with simulated item details
+  function openEditSimulation(item: SimulatedItem) {
+    setEditingSimItemId(item.id);
+    setNewItemNote(item.note);
+    setNewItemAmount((item.amount / 100).toFixed(2));
+    setNewItemType(item.type);
+    setSelectedCategoryId(item.categoryId);
+    const d = new Date(item.date);
+    setSimYear(d.getFullYear());
+    setSimMonth(d.getMonth());
+    setSimDay(d.getDate());
+    setShowAddSheet(true);
+  }
+
+  // Add or update simulated item
+  function saveSimulatedItem() {
     const amt = parseFloat(newItemAmount) || 0;
     if (amt <= 0) {
       Alert.alert('Monto inválido', 'El monto simulado debe ser mayor a 0.');
@@ -148,17 +176,34 @@ export function CalculatorScreen() {
       return;
     }
 
-    const newItem: SimulatedItem = {
-      id: 'sim-' + Date.now(),
-      note: newItemNote.trim(),
-      amount: Math.round(amt * 100),
-      type: newItemType,
-      accountId: accountId,
-      categoryId: selectedCategoryId,
-      date: new Date(simYear, simMonth, simDay).getTime(),
-    };
+    if (editingSimItemId) {
+      setSimulatedItems(prev => prev.map(item => {
+        if (item.id === editingSimItemId) {
+          return {
+            ...item,
+            note: newItemNote.trim(),
+            amount: Math.round(amt * 100),
+            type: newItemType,
+            categoryId: selectedCategoryId,
+            date: new Date(simYear, simMonth, simDay).getTime(),
+          };
+        }
+        return item;
+      }));
+      setEditingSimItemId(null);
+    } else {
+      const newItem: SimulatedItem = {
+        id: 'sim-' + Date.now(),
+        note: newItemNote.trim(),
+        amount: Math.round(amt * 100),
+        type: newItemType,
+        accountId: accountId,
+        categoryId: selectedCategoryId,
+        date: new Date(simYear, simMonth, simDay).getTime(),
+      };
+      setSimulatedItems(prev => [...prev, newItem]);
+    }
 
-    setSimulatedItems(prev => [...prev, newItem]);
     setShowAddSheet(false);
   }
 
@@ -204,20 +249,58 @@ export function CalculatorScreen() {
         {
           text: 'Confirmar',
           onPress: () => {
+            const now = new Date();
+            // Start of today (00:00:00.000) or end of today.
+            // Let's set it to the end of today to be safe, or just compare dates.
+            // If we compare milliseconds: if the transaction date is strictly after today (at 23:59:59), or simply if the day is in the future.
+            const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+
+            let txCount = 0;
+            let recurringCount = 0;
+
             simulatedItems.forEach((item, idx) => {
-              const tx = {
-                id: 'tx-sim-' + Date.now() + '-' + idx + '-' + Math.random().toString(36).substring(2, 6),
-                type: item.type,
-                amount: item.amount,
-                date: item.date, // Use the simulated date chosen by the user
-                accountId: item.accountId,
-                categoryId: item.categoryId,
-                note: item.note,
-              };
-              dispatch({ type: 'ADD_TX', tx });
+              const isFuture = item.date > todayEnd;
+
+              if (isFuture) {
+                // Future dates are saved as one-time recurring rules so the user can confirm them when the day arrives
+                const rule = {
+                  id: 'rec-sim-' + Date.now() + '-' + idx + '-' + Math.random().toString(36).substring(2, 6),
+                  type: item.type as 'INCOME' | 'EXPENSE',
+                  amount: item.amount,
+                  accountId: item.accountId,
+                  categoryId: item.categoryId || null,
+                  note: item.note || null,
+                  frequency: 'once' as const,
+                  startDate: item.date,
+                  active: true,
+                  lastGenerated: null,
+                };
+                dispatch({ type: 'ADD_RECURRING', rule });
+                recurringCount++;
+              } else {
+                // Past or today's dates are registered as real transactions immediately
+                const tx = {
+                  id: 'tx-sim-' + Date.now() + '-' + idx + '-' + Math.random().toString(36).substring(2, 6),
+                  type: item.type,
+                  amount: item.amount,
+                  date: item.date,
+                  accountId: item.accountId,
+                  categoryId: item.categoryId,
+                  note: item.note,
+                };
+                dispatch({ type: 'ADD_TX', tx });
+                txCount++;
+              }
             });
 
-            Alert.alert('¡Movimientos guardados!', 'Se han creado las transacciones con éxito.');
+            let msg = 'Se han creado las transacciones con éxito.';
+            if (recurringCount > 0 && txCount > 0) {
+              msg = `Se crearon ${txCount} transacciones inmediatas y ${recurringCount} programadas para el futuro (una sola vez).`;
+            } else if (recurringCount > 0) {
+              msg = `Se crearon ${recurringCount} transacciones programadas para el futuro (una sola vez).`;
+            }
+
+            Alert.alert('¡Movimientos guardados!', msg);
             setSimulatedItems([]);
           },
         },
@@ -375,6 +458,30 @@ export function CalculatorScreen() {
                   {fmtMXN(netSimulatedBalance)}
                 </Text>
               </View>
+
+              {isSimulationNegative ? (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 10,
+                  marginTop: 10,
+                }}>
+                  <Icon name="x" size={14} color="#ffb3c1" strokeWidth={3} />
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_600SemiBold',
+                    fontSize: 11,
+                    color: '#ffb3c1',
+                    flex: 1,
+                    lineHeight: 14,
+                  }}>
+                    {selectedBaseAcc?.type === 'CREDIT_CARD' ? 'El cálculo supera tu límite de crédito disponible.' : 'El cálculo supera tu saldo disponible (saldo insuficiente).'}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </LinearGradient>
         </Card>
@@ -437,13 +544,17 @@ export function CalculatorScreen() {
 
                 return (
                   <View key={item.id}>
-                    <View style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 12,
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                    }}>
+                    <Pressable
+                      onPress={() => openEditSimulation(item)}
+                      style={({ pressed }) => [{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 12,
+                        paddingHorizontal: 14,
+                        paddingVertical: 12,
+                        opacity: pressed ? 0.7 : 1,
+                      }]}
+                    >
                       <View style={{
                         width: 32, height: 32, borderRadius: 10,
                         backgroundColor: softFor(t, isExpense ? 'rose' : 'green'),
@@ -487,7 +598,7 @@ export function CalculatorScreen() {
                           <Icon name="x" size={16} color={t.textMuted} />
                         </Pressable>
                       </View>
-                    </View>
+                    </Pressable>
                     {idx < simulatedItems.length - 1 ? (
                       <View style={{ height: 1, backgroundColor: t.border, marginHorizontal: 14 }} />
                     ) : null}
@@ -503,23 +614,26 @@ export function CalculatorScreen() {
           <View style={{ marginTop: 24 }}>
             <Pressable
               onPress={applySimulationToTransactions}
+              disabled={isSimulationNegative}
               style={({ pressed }) => [{
                 borderRadius: 16,
                 overflow: 'hidden',
-                opacity: pressed ? 0.9 : 1,
-                shadowColor: t.green,
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.3,
-                shadowRadius: 16,
-                elevation: 6,
+                opacity: isSimulationNegative ? 0.5 : (pressed ? 0.9 : 1),
+                ...(!isSimulationNegative && {
+                  shadowColor: t.green,
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 16,
+                  elevation: 6,
+                }),
               }]}
             >
               <LinearGradient
-                colors={[t.green, t.green + 'cc' as any]}
+                colors={isSimulationNegative ? [t.border, t.border] : [t.green, t.green + 'cc' as any]}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                 style={{ paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
               >
-                <Icon name="check" size={18} color="#fff" strokeWidth={3} />
+                <Icon name={isSimulationNegative ? "x" : "check"} size={18} color="#fff" strokeWidth={3} />
                 <Text style={{
                   fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: '#fff',
                 }}>
@@ -531,7 +645,7 @@ export function CalculatorScreen() {
         ) : null}
       </ScrollView>
 
-      {/* Keyboard avoiding sheet to ADD simulated item */}
+      {/* Keyboard avoiding sheet to ADD/EDIT simulated item */}
       <Sheet open={showAddSheet} onClose={() => setShowAddSheet(false)} height="68%">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -546,7 +660,7 @@ export function CalculatorScreen() {
             <Text style={{
               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
               letterSpacing: -0.3, marginBottom: 14,
-            }}>Agregar simulación</Text>
+            }}>{editingSimItemId ? 'Editar simulación' : 'Agregar simulación'}</Text>
 
             {/* Type picker */}
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
@@ -678,10 +792,33 @@ export function CalculatorScreen() {
             </Pressable>
 
             {/* Inline Category Selector */}
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
-              letterSpacing: 0.3, marginBottom: 8,
-            }}>CATEGORÍA</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+                letterSpacing: 0.3,
+              }}>CATEGORÍA</Text>
+              <Pressable
+                onPress={() => {
+                  setShowAddSheet(false);
+                  navigate({ screen: 'add-category' });
+                }}
+                style={({ pressed }) => [{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 8,
+                  backgroundColor: softFor(t, 'indigo'),
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  opacity: pressed ? 0.7 : 1,
+                }]}
+              >
+                <Icon name="plus" size={10} color={colorFor(t, 'indigo')} strokeWidth={3} />
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: colorFor(t, 'indigo'),
+                }}>Nueva</Text>
+              </Pressable>
+            </View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -719,7 +856,7 @@ export function CalculatorScreen() {
             </ScrollView>
 
             <Pressable
-              onPress={addSimulatedItem}
+              onPress={saveSimulatedItem}
               style={({ pressed }) => [{
                 paddingVertical: 14,
                 borderRadius: 16,
@@ -733,7 +870,7 @@ export function CalculatorScreen() {
                 fontSize: 14,
                 color: '#fff',
               }}>
-                Agregar a la Simulación
+                {editingSimItemId ? 'Guardar cambios' : 'Agregar a la Simulación'}
               </Text>
             </Pressable>
           </ScrollView>

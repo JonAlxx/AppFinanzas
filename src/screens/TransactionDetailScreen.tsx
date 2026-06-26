@@ -21,16 +21,17 @@ function DetailRow({ label, value, divider }: { label: string; value: string; di
   const { t } = useTheme();
   return (
     <View style={{
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
       paddingHorizontal: 16, paddingVertical: 14,
       borderBottomWidth: divider ? 1 : 0, borderBottomColor: t.border,
     }}>
       <Text style={{
         fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 13, color: t.textMuted,
+        marginRight: 16,
       }}>{label}</Text>
-      <Text numberOfLines={1} style={{
+      <Text style={{
         fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
-        maxWidth: '60%', textAlign: 'right',
+        textAlign: 'right', flex: 1,
       }}>{value}</Text>
     </View>
   );
@@ -58,13 +59,14 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
   const cat = tx.categoryId ? catById(tx.categoryId, state.customCategories) : undefined;
   const acc = state.accounts.find(a => a.id === tx.accountId);
   const dest = tx.destinationAccountId ? state.accounts.find(a => a.id === tx.destinationAccountId) : undefined;
-  const isIncome = tx.type === 'INCOME';
+  const isDebtAbono = tx.type === 'INCOME' && tx.categoryId === 'cat-debt';
   const isTransfer = tx.type === 'TRANSFER';
-  const sign = isIncome ? '+' : isTransfer ? '' : '-';
-  const color = isIncome ? t.green : isTransfer ? t.indigo : t.rose;
+  const isIncome = tx.type === 'INCOME' && !isDebtAbono;
+  const sign = isIncome || isDebtAbono ? '+' : isTransfer ? '' : '-';
+  const color = isDebtAbono ? t.textMuted : isIncome ? t.green : isTransfer ? t.indigo : t.rose;
 
   const detailRows: { label: string; value: string }[] = [
-    { label: 'Categoría', value: cat?.name || (isTransfer ? '—' : 'Sin categoría') },
+    { label: 'Categoría', value: isDebtAbono ? 'Abono a cuenta' : (cat?.name || (isTransfer ? '—' : 'Sin categoría')) },
     { label: isTransfer ? 'Desde' : 'Cuenta', value: acc?.name || '—' },
   ];
   if (dest) detailRows.push({ label: 'Hacia', value: dest.name });
@@ -88,10 +90,18 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
           {isTransfer ? (
             <View style={{
               width: 64, height: 64, borderRadius: 20,
-              backgroundColor: softFor(t, 'indigo'),
+              backgroundColor: t.indigoSoft,
               alignItems: 'center', justifyContent: 'center',
             }}>
               <Icon name="transfer" size={32} color={t.indigo} />
+            </View>
+          ) : (isDebtAbono || (tx.type === 'EXPENSE' && tx.categoryId === 'cat-debt')) ? (
+            <View style={{
+              width: 64, height: 64, borderRadius: 20,
+              backgroundColor: isDebtAbono ? t.blueSoft : t.roseSoft,
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon name="card" size={32} color={isDebtAbono ? t.blue : t.rose} strokeWidth={2} />
             </View>
           ) : (
             <CategoryBadge cat={cat} size={64} radius={20} iconSize={32} />
@@ -99,7 +109,7 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
           <Text style={{
             fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.textMuted,
             textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 14,
-          }}>{isIncome ? 'Ingreso' : isTransfer ? 'Transferencia' : 'Gasto'}</Text>
+          }}>{isDebtAbono ? 'Abono a cuenta' : isIncome ? 'Ingreso' : isTransfer ? 'Transferencia' : 'Gasto'}</Text>
           <Text style={{
             fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color,
             letterSpacing: -1.2, marginTop: 4,
