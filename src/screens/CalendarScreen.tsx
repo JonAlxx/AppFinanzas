@@ -50,11 +50,26 @@ export function CalendarScreen() {
   const [selectedUpcoming, setSelectedUpcoming] = useState<{ rule: Recurring; date: number } | null>(null);
 
   function confirmPayment(p: { rule: Recurring; date: number }) {
+    // Use today's date with the actual current time as the transaction date (user is confirming it now).
+    // If confirming a past date, preserve that scheduled date but with the current hour/minute to have a proper timestamp.
+    // lastGenerated keeps the scheduled date to maintain the recurring cycle correctly.
+    const now = new Date();
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    let actualDate: number;
+    if (p.date >= todayStart.getTime()) {
+      actualDate = now.getTime();
+    } else {
+      const scheduled = new Date(p.date);
+      scheduled.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      actualDate = scheduled.getTime();
+    }
     const newTx = {
       id: 'tx-rec-' + p.rule.id + '-' + p.date,
       type: p.rule.type,
       amount: p.rule.amount,
-      date: p.date,
+      date: actualDate,
       accountId: p.rule.accountId,
       categoryId: p.rule.categoryId || null,
       note: p.rule.note || null,

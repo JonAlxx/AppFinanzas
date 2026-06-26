@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, View, TextInput, Pressable, Alert } from 'react-native';
+import { ScrollView, Text, View, TextInput, Pressable, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -22,116 +22,23 @@ import { Sheet } from '../components/Sheet';
 import { Icon } from '../icons/Icon';
 
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const MONTHS_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const DAYS_OF_WEEK = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
-// Helper to get period start and end bounds
-function getPeriodBounds(period: 'weekly' | 'biweekly' | 'monthly' | undefined, nowMs = Date.now()) {
-  const p = period || 'monthly';
-  const now = new Date(nowMs);
-  
-  let currentStart = 0;
-  let currentEnd = 0;
-  let prevStart = 0;
-  let prevEnd = 0;
-  let daysRemaining = 0;
-  let periodLabel = '';
-  
-  if (p === 'weekly') {
-    // Current week (Monday to Sunday)
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
-    
-    const currMonday = new Date(now.getFullYear(), now.getMonth(), diff);
-    currMonday.setHours(0, 0, 0, 0);
-    currentStart = currMonday.getTime();
-    
-    const currSunday = new Date(currMonday);
-    currSunday.setDate(currSunday.getDate() + 7);
-    currentEnd = currSunday.getTime(); // start of next week
-    
-    // Previous week
-    const prevMonday = new Date(currMonday);
-    prevMonday.setDate(prevMonday.getDate() - 7);
-    prevStart = prevMonday.getTime();
-    prevEnd = currentStart;
-    
-    daysRemaining = Math.max(1, Math.ceil((currentEnd - nowMs) / 86400000));
-    periodLabel = 'Esta semana';
-  } else if (p === 'biweekly') {
-    // Current fortnight (1st-15th or 16th-end)
-    const isFirstHalf = now.getDate() <= 15;
-    
-    if (isFirstHalf) {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      start.setHours(0, 0, 0, 0);
-      currentStart = start.getTime();
-      
-      const end = new Date(now.getFullYear(), now.getMonth(), 16);
-      end.setHours(0, 0, 0, 0);
-      currentEnd = end.getTime();
-      
-      // Previous fortnight: 16th to end of last month
-      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 16);
-      prevMonthStart.setHours(0, 0, 0, 0);
-      prevStart = prevMonthStart.getTime();
-      prevEnd = currentStart;
-    } else {
-      const start = new Date(now.getFullYear(), now.getMonth(), 16);
-      start.setHours(0, 0, 0, 0);
-      currentStart = start.getTime();
-      
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      end.setHours(0, 0, 0, 0);
-      currentEnd = end.getTime();
-      
-      // Previous fortnight: 1st to 15th of this month
-      const prevStartObj = new Date(now.getFullYear(), now.getMonth(), 1);
-      prevStartObj.setHours(0, 0, 0, 0);
-      prevStart = prevStartObj.getTime();
-      prevEnd = currentStart;
-    }
-    
-    daysRemaining = Math.max(1, Math.ceil((currentEnd - nowMs) / 86400000));
-    periodLabel = 'Esta quincena';
-  } else {
-    // Current month
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    start.setHours(0, 0, 0, 0);
-    currentStart = start.getTime();
-    
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    end.setHours(0, 0, 0, 0);
-    currentEnd = end.getTime();
-    
-    // Previous month
-    const prevStartObj = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    prevStartObj.setHours(0, 0, 0, 0);
-    prevStart = prevStartObj.getTime();
-    prevEnd = currentStart;
-    
-    daysRemaining = Math.max(1, Math.ceil((currentEnd - nowMs) / 86400000));
-    periodLabel = 'Este mes';
-  }
-  
-  return { currentStart, currentEnd, prevStart, prevEnd, daysRemaining, periodLabel };
-}
-
-// Helper to calculate spent in specific period
-function spentInPeriod(txs: any[], categoryId: string, startMs: number, endMs: number) {
-  let sum = 0;
-  for (const t of txs) {
-    if (t.type !== 'EXPENSE') continue;
-    if (t.categoryId !== categoryId) continue;
-    if (t.date >= startMs && t.date < endMs) {
-      sum += t.amount;
-    }
-  }
-  return sum;
-}
+import { getPeriodBounds, spentInPeriod } from '../utils/budget';
 
 export function BudgetsScreen() {
   const { t } = useTheme();
   const { state, dispatch } = useAppState();
   const { navigate } = useNavigation();
+
+  // Find custom quincena days from any active biweekly recurring rule
+  const biweeklyRule = useMemo(() => 
+    state.recurring.find(r => r.active && r.frequency === 'biweekly' && (r.biweeklyDay1 !== undefined || r.biweeklyDay2 !== undefined)),
+    [state.recurring]
+  );
+  const customDay1 = biweeklyRule?.biweeklyDay1;
+  const customDay2 = biweeklyRule?.biweeklyDay2;
 
   // Modal / Sheet States
   const [isOpen, setIsOpen] = useState(false);
@@ -139,7 +46,90 @@ export function BudgetsScreen() {
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [limitInput, setLimitInput] = useState<string>('');
-  const [selectedPeriod, setSelectedPeriod] = useState<'weekly' | 'biweekly' | 'monthly'>('monthly');
+  const [selectedPeriod, setSelectedPeriod] = useState<'weekly' | 'biweekly' | 'monthly' | 'custom'>('monthly');
+
+  // Custom budget period configuration states
+  const [customType, setCustomType] = useState<'range' | 'duration'>('range');
+  const [customStartDay, setCustomStartDay] = useState<number>(10);
+  const [customEndDay, setCustomEndDay] = useState<number>(25);
+  const [customDurationValue, setCustomDurationValue] = useState<string>('3');
+  const [customDurationUnit, setCustomDurationUnit] = useState<'days' | 'weeks'>('days');
+  const [customStartDate, setCustomStartDate] = useState<number>(Date.now());
+  const [isCustomBiweekly, setIsCustomBiweekly] = useState<boolean>(false);
+  const [customWeekStartDay, setCustomWeekStartDay] = useState<number>(1);
+  const [showWeekStartSheet, setShowWeekStartSheet] = useState<boolean>(false);
+
+  // Calendar Range Picker states
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarMode, setCalendarMode] = useState<'quincena' | 'custom'>('quincena');
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [tempStart, setTempStart] = useState<Date | null>(null);
+  const [tempEnd, setTempEnd] = useState<Date | null>(null);
+
+  const prevMonth = () => {
+    setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1));
+  };
+  const nextMonth = () => {
+    setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const numberOfDays = new Date(year, month + 1, 0).getDate();
+    
+    const days = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= numberOfDays; i++) {
+      days.push(new Date(year, month, i));
+    }
+    return days;
+  };
+
+  const handleDayPress = (day: Date) => {
+    if (!tempStart || (tempStart && tempEnd)) {
+      setTempStart(day);
+      setTempEnd(null);
+    } else {
+      if (day.getTime() < tempStart.getTime()) {
+        setTempStart(day);
+        setTempEnd(null);
+      } else {
+        setTempEnd(day);
+      }
+    }
+  };
+
+  const handleConfirmCalendar = () => {
+    if (!tempStart) return;
+    
+    if (calendarMode === 'quincena') {
+      const d1 = tempStart.getDate();
+      const d2 = tempEnd ? tempEnd.getDate() : 15;
+      const minDay = Math.min(d1, d2);
+      const maxDay = Math.max(d1, d2);
+      
+      setCustomStartDay(minDay);
+      setCustomEndDay(maxDay);
+      setIsCustomBiweekly(true);
+    } else {
+      // calendarMode === 'custom'
+      const start = tempStart.getTime();
+      const end = tempEnd ? tempEnd.getTime() : tempStart.getTime();
+      
+      const diffMs = Math.abs(end - start);
+      const diffDays = Math.max(1, Math.round(diffMs / 86400000));
+      
+      setCustomStartDate(start);
+      setCustomDurationValue(diffDays.toString());
+      setCustomDurationUnit('days');
+      setCustomType('duration');
+    }
+    setShowCalendar(false);
+  };
 
   const expenseCategories = useMemo(() => {
     const allCats = allCategories(state.customCategories);
@@ -158,7 +148,19 @@ export function BudgetsScreen() {
     const cat = catById(b.categoryId, state.customCategories);
     const isAdmin = state.profile?.phone === '12345678123';
     const createdTime = parseInt(b.id.replace('budget-', '')) || 0;
-    const { currentStart, currentEnd, prevStart, prevEnd, daysRemaining, periodLabel } = getPeriodBounds(b.period);
+    const { currentStart, currentEnd, prevStart, prevEnd, daysRemaining, periodLabel } = getPeriodBounds(
+      b.period,
+      Date.now(),
+      customDay1,
+      customDay2,
+      b.customType,
+      b.customStartDay,
+      b.customEndDay,
+      b.customDurationValue,
+      b.customDurationUnit,
+      b.customStartDate,
+      b.customWeekStartDay
+    );
     const hasPreviousPeriod = isAdmin ? true : (createdTime < currentStart);
 
     const spent = spentInPeriod(state.transactions, b.categoryId, currentStart, currentEnd);
@@ -184,19 +186,31 @@ export function BudgetsScreen() {
       daysRemaining,
       periodLabel,
     };
-  }), [state.budgets, state.transactions, state.customCategories]);
+  }), [state.budgets, state.transactions, state.customCategories, customDay1, customDay2]);
 
   // Transactions in the current period for the selected budget category
   const currentPeriodTransactions = useMemo(() => {
     if (!editingBudget) return [];
-    const { currentStart, currentEnd } = getPeriodBounds(editingBudget.period);
+    const { currentStart, currentEnd } = getPeriodBounds(
+      editingBudget.period,
+      Date.now(),
+      customDay1,
+      customDay2,
+      editingBudget.customType,
+      editingBudget.customStartDay,
+      editingBudget.customEndDay,
+      editingBudget.customDurationValue,
+      editingBudget.customDurationUnit,
+      editingBudget.customStartDate,
+      editingBudget.customWeekStartDay
+    );
     return state.transactions.filter(t =>
       t.type === 'EXPENSE' &&
       t.categoryId === editingBudget.categoryId &&
       t.date >= currentStart &&
       t.date < currentEnd
     ).sort((a, b) => b.date - a.date);
-  }, [editingBudget, state.transactions]);
+  }, [editingBudget, state.transactions, customDay1, customDay2]);
 
   const totalLimit = data.reduce((s, b) => s + b.effectiveLimit, 0);
   const totalSpent = data.reduce((s, b) => s + b.spent, 0);
@@ -218,12 +232,47 @@ export function BudgetsScreen() {
 
     const limitCents = Math.round(limitNum * 100);
 
+    const customFields = selectedPeriod === 'custom' ? {
+      customType,
+      customStartDay: customType === 'range' ? customStartDay : undefined,
+      customEndDay: customType === 'range' ? customEndDay : undefined,
+      customDurationValue: customType === 'duration' ? (parseInt(customDurationValue, 10) || 3) : undefined,
+      customDurationUnit: customType === 'duration' ? customDurationUnit : undefined,
+      customStartDate: customType === 'duration' ? customStartDate : undefined,
+      customWeekStartDay: undefined,
+    } : (selectedPeriod === 'biweekly' && isCustomBiweekly) ? {
+      customType: undefined,
+      customStartDay: customStartDay,
+      customEndDay: customEndDay,
+      customDurationValue: undefined,
+      customDurationUnit: undefined,
+      customStartDate: undefined,
+      customWeekStartDay: undefined,
+    } : selectedPeriod === 'weekly' ? {
+      customType: undefined,
+      customStartDay: undefined,
+      customEndDay: undefined,
+      customDurationValue: undefined,
+      customDurationUnit: undefined,
+      customStartDate: undefined,
+      customWeekStartDay: customWeekStartDay,
+    } : {
+      customType: undefined,
+      customStartDay: undefined,
+      customEndDay: undefined,
+      customDurationValue: undefined,
+      customDurationUnit: undefined,
+      customStartDate: undefined,
+      customWeekStartDay: undefined,
+    };
+
     if (editingBudget) {
       const budget: Budget = {
         ...editingBudget,
         categoryId: selectedCategoryId,
         limit: limitCents,
         period: selectedPeriod,
+        ...customFields,
       };
       dispatch({ type: 'UPDATE_BUDGET', budget });
     } else {
@@ -233,6 +282,7 @@ export function BudgetsScreen() {
         limit: limitCents,
         period: selectedPeriod,
         prevLeftoverProcessed: false,
+        ...customFields,
       };
       dispatch({ type: 'ADD_BUDGET', budget });
     }
@@ -352,6 +402,14 @@ export function BudgetsScreen() {
           setSelectedCategoryId(availableCategories[0]?.id || '');
           setLimitInput('');
           setSelectedPeriod('monthly');
+          setCustomType('range');
+          setCustomStartDay(10);
+          setCustomEndDay(25);
+          setCustomDurationValue('3');
+          setCustomDurationUnit('days');
+          setCustomStartDate(Date.now());
+          setIsCustomBiweekly(false);
+          setCustomWeekStartDay(1);
           setSheetMode('create');
           setIsOpen(true);
         }}
@@ -426,6 +484,14 @@ export function BudgetsScreen() {
                   setSelectedCategoryId(availableCategories[0]?.id || '');
                   setLimitInput('');
                   setSelectedPeriod('monthly');
+                  setCustomType('range');
+                  setCustomStartDay(10);
+                  setCustomEndDay(25);
+                  setCustomDurationValue('3');
+                  setCustomDurationUnit('days');
+                  setCustomStartDate(Date.now());
+                  setIsCustomBiweekly(false);
+                  setCustomWeekStartDay(1);
                   setSheetMode('create');
                   setIsOpen(true);
                 }}
@@ -448,6 +514,14 @@ export function BudgetsScreen() {
                       setSelectedCategoryId(b.categoryId);
                       setLimitInput((b.limit / 100).toString());
                       setSelectedPeriod(b.period || 'monthly');
+                      setCustomType(b.customType || 'range');
+                      setCustomStartDay(b.customStartDay || 10);
+                      setCustomEndDay(b.customEndDay || 25);
+                      setCustomDurationValue((b.customDurationValue || 3).toString());
+                      setCustomDurationUnit(b.customDurationUnit || 'days');
+                      setCustomStartDate(b.customStartDate || Date.now());
+                      setIsCustomBiweekly(b.period === 'biweekly' && (b.customStartDay !== undefined || b.customEndDay !== undefined));
+                      setCustomWeekStartDay(b.customWeekStartDay !== undefined ? b.customWeekStartDay : 1);
                       setSheetMode('detail');
                       setIsOpen(true);
                     }}
@@ -568,19 +642,81 @@ export function BudgetsScreen() {
                 </View>
               </View>
 
-              {/* Progress Summary */}
-              <View style={{ marginBottom: 20 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center', gap: 8 }}>
-                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted, flex: 1 }}>
-                    {budgetData.periodLabel} · {budgetData.daysRemaining} {budgetData.daysRemaining === 1 ? 'día' : 'días'} rest.
+              {/* Circular Progress & Status for Budgets */}
+              {(() => {
+                const pct = budgetData.pct;
+                const catColor = budgetData.cat?.color || 'indigo';
+                const c = pct >= 100 ? t.rose : pct >= 80 ? t.orange : colorFor(t, catColor);
+                const soft = pct >= 100 ? softFor(t, 'rose') : pct >= 80 ? softFor(t, 'orange') : softFor(t, catColor);
+                
+                return (
+                  <View style={{ alignItems: 'center', marginVertical: 8 }}>
+                    <View style={{ width: 90, height: 90, justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                      <Svg width={90} height={90} viewBox="0 0 100 100" style={{ transform: [{ rotate: '-90deg' }] }}>
+                        {/* Background Ring */}
+                        <Circle
+                          cx={50}
+                          cy={50}
+                          r={42}
+                          stroke={soft}
+                          strokeWidth={8}
+                          fill="transparent"
+                        />
+                        {/* Foreground Ring */}
+                        <Circle
+                          cx={50}
+                          cy={50}
+                          r={42}
+                          stroke={c}
+                          strokeWidth={8}
+                          fill="transparent"
+                          strokeDasharray={2 * Math.PI * 42}
+                          strokeDashoffset={(2 * Math.PI * 42) - ((2 * Math.PI * 42) * Math.min(100, pct)) / 100}
+                          strokeLinecap="round"
+                        />
+                      </Svg>
+                      {/* Center Text */}
+                      <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 16, color: t.text }}>
+                          {pct.toFixed(0)}%
+                        </Text>
+                        <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 6, color: t.textMuted, marginTop: -2 }}>
+                          CONSUMIDO
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Status Alert Box */}
+                    <View style={{ 
+                      marginTop: 10, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10,
+                      backgroundColor: soft, borderWidth: 1, borderColor: c + '22',
+                      flexDirection: 'row', alignItems: 'center', gap: 6
+                    }}>
+                      <Icon name={pct >= 100 ? 'alert' : pct >= 80 ? 'alert' : 'check'} size={11} color={c} />
+                      <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: c }}>
+                        {pct >= 100 
+                          ? '¡LÍMITE EXCEDIDO! 🚨' 
+                          : pct >= 80 
+                            ? '¡PRESUPUESTO CASI AGOTADO! ⚠️' 
+                            : 'PRESUPUESTO CONTROLADO ✅'}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })()}
+
+              {/* Progress Detail */}
+              <View style={{ marginBottom: 12, marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted }}>
+                    Consumido del periodo
                   </Text>
-                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.text, fontVariant: ['tabular-nums'] }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.text, fontVariant: ['tabular-nums'] }}>
                     {fmtMXN(budgetData.spent)} de {fmtMXN(budgetData.effectiveLimit)}
                   </Text>
                 </View>
-                <ProgressBar pct={budgetData.pct} color={budgetData.pct >= 100 ? 'rose' : budgetData.pct >= 80 ? 'orange' : budgetData.cat?.color} height={10} />
                 {budgetData.rollover && budgetData.rollover > 0 ? (
-                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, color: t.green, marginTop: 6 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, color: t.green, marginTop: 4 }}>
                     * Incluye {fmtMXN(budgetData.rollover)} extra acumulado del periodo anterior.
                   </Text>
                 ) : null}
@@ -914,22 +1050,28 @@ export function BudgetsScreen() {
               fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
               marginBottom: 10,
             }}>PERIODO DEL PRESUPUESTO</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-              {(['weekly', 'biweekly', 'monthly'] as const).map(p => {
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginHorizontal: -20, marginBottom: 20 }}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingVertical: 4 }}
+            >
+              {(['weekly', 'biweekly', 'monthly', 'custom'] as const).map(p => {
                 const selected = selectedPeriod === p;
-                const label = p === 'weekly' ? 'Semanal' : p === 'biweekly' ? 'Quincenal' : 'Mensual';
+                const label = p === 'weekly' ? 'Semanal' : p === 'biweekly' ? 'Quincenal' : p === 'monthly' ? 'Mensual' : 'Personalizado';
                 return (
                   <Pressable
                     key={p}
                     onPress={() => setSelectedPeriod(p)}
                     style={{
-                      flex: 1,
-                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
                       borderRadius: 12,
-                      borderWidth: 1,
+                      borderWidth: selected ? 1.5 : 1,
                       borderColor: selected ? t.indigo : t.border,
                       backgroundColor: selected ? softFor(t, 'indigo') : t.surfaceAlt,
                       alignItems: 'center',
+                      justifyContent: 'center',
                     }}
                   >
                     <Text style={{
@@ -940,7 +1082,205 @@ export function BudgetsScreen() {
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
+
+            {/* Weekly configuration display */}
+            {selectedPeriod === 'weekly' && (
+              <Pressable
+                onPress={() => setShowWeekStartSheet(true)}
+                style={({ pressed }) => [{
+                  padding: 16,
+                  borderRadius: 18,
+                  backgroundColor: t.surfaceAlt,
+                  borderWidth: 1,
+                  borderColor: pressed ? t.indigo : t.border,
+                  marginBottom: 20,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 14,
+                }]}
+              >
+                <View style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  backgroundColor: softFor(t, 'indigo'),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Icon name="calendar" size={20} color={t.indigo} />
+                </View>
+                
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
+                    letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 2
+                  }}>Inicio de Semana</Text>
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text
+                  }}>
+                    {['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][customWeekStartDay]}
+                  </Text>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: customWeekStartDay !== 1 ? t.indigo : t.textMuted,
+                    marginTop: 2
+                  }}>
+                    {customWeekStartDay !== 1 ? '⚡ Personalizado · Toca para cambiar' : 'Por defecto (Lunes) · Toca para cambiar'}
+                  </Text>
+                </View>
+                
+                <View style={{ opacity: 0.5 }}>
+                  <Icon name="chevron-right" size={16} color={t.textMuted} />
+                </View>
+              </Pressable>
+            )}
+
+            {/* Quincenal configuration display */}
+            {selectedPeriod === 'biweekly' && (
+              <Pressable
+                onPress={() => {
+                  setCalendarMode('quincena');
+                  const now = new Date();
+                  const d1 = isCustomBiweekly ? customStartDay : 15;
+                  const d2 = isCustomBiweekly ? customEndDay : 30;
+                  setTempStart(new Date(now.getFullYear(), now.getMonth(), d1));
+                  setTempEnd(new Date(now.getFullYear(), now.getMonth(), d2));
+                  setCalendarMonth(now);
+                  setShowCalendar(true);
+                }}
+                style={({ pressed }) => [{
+                  padding: 16,
+                  borderRadius: 18,
+                  backgroundColor: t.surfaceAlt,
+                  borderWidth: 1,
+                  borderColor: pressed ? t.indigo : t.border,
+                  marginBottom: 20,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 14,
+                }]}
+              >
+                <View style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  backgroundColor: softFor(t, 'indigo'),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Icon name="calendar" size={20} color={t.indigo} />
+                </View>
+                
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
+                    letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 2
+                  }}>Esquema de Quincena</Text>
+                  <Text numberOfLines={1} style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text
+                  }}>
+                    {isCustomBiweekly 
+                      ? `Días ${customStartDay} y ${customEndDay}` 
+                      : 'Día 15 y Fin de mes'}
+                  </Text>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: isCustomBiweekly ? t.indigo : t.textMuted,
+                    marginTop: 2
+                  }}>
+                    {isCustomBiweekly ? '⚡ Personalizado · Toca para cambiar' : 'Estándar · Toca para personalizar'}
+                  </Text>
+                </View>
+                
+                <View style={{ opacity: 0.5 }}>
+                  <Icon name="chevron-right" size={16} color={t.textMuted} />
+                </View>
+              </Pressable>
+            )}
+
+            {/* Custom configurations display */}
+            {selectedPeriod === 'custom' && (
+              <Pressable
+                onPress={() => {
+                  setCalendarMode('custom');
+                  const now = new Date();
+                  if (customStartDate && customDurationValue) {
+                    const start = new Date(customStartDate);
+                    const days = parseInt(customDurationValue, 10) || 3;
+                    setTempStart(start);
+                    setTempEnd(new Date(start.getTime() + days * 86400000));
+                    setCalendarMonth(start);
+                  } else {
+                    setTempStart(now);
+                    setTempEnd(new Date(now.getTime() + 17 * 86400000)); // Default 17 days
+                    setCalendarMonth(now);
+                  }
+                  setShowCalendar(true);
+                }}
+                style={({ pressed }) => [{
+                  padding: 16,
+                  borderRadius: 18,
+                  backgroundColor: t.surfaceAlt,
+                  borderWidth: 1,
+                  borderColor: pressed ? t.indigo : t.border,
+                  marginBottom: 20,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 14,
+                }]}
+              >
+                <View style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  backgroundColor: softFor(t, 'indigo'),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Icon name="target" size={20} color={t.indigo} />
+                </View>
+                
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
+                    letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 2
+                  }}>Rango Personalizado</Text>
+                  
+                  {customStartDate && customDurationValue ? (
+                    <>
+                      <Text numberOfLines={1} style={{
+                        fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text
+                      }}>
+                        Cada {customDurationValue} {parseInt(customDurationValue, 10) === 1 ? 'día' : 'días'}
+                      </Text>
+                      <Text numberOfLines={1} style={{
+                        fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.indigo,
+                        marginTop: 2
+                      }}>
+                        Inicio: {new Date(customStartDate).getDate()} de {MONTHS[new Date(customStartDate).getMonth()]} · Toca para cambiar
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text numberOfLines={1} style={{
+                        fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text
+                      }}>
+                        Sin rango definido
+                      </Text>
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.textMuted,
+                        marginTop: 2
+                      }}>
+                        Toca para seleccionar fechas
+                      </Text>
+                    </>
+                  )}
+                </View>
+                
+                <View style={{ opacity: 0.5 }}>
+                  <Icon name="chevron-right" size={16} color={t.textMuted} />
+                </View>
+              </Pressable>
+            )}
 
             {/* Limit input */}
             <Text style={{
@@ -1007,6 +1347,208 @@ export function BudgetsScreen() {
           </ScrollView>
         )}
       </Sheet>
+
+      {/* Sheet to select Day of the Week for weekly start */}
+      <Sheet open={showWeekStartSheet} onClose={() => setShowWeekStartSheet(false)} height="65%">
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
+            letterSpacing: -0.3, marginBottom: 6,
+          }}>Día de inicio de semana</Text>
+          <Text style={{
+            fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted,
+            marginBottom: 16,
+          }}>Selecciona el día en que deseas que inicien tus periodos semanales de presupuesto.</Text>
+        </View>
+        
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 36, gap: 10 }}
+        >
+          {['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map((day, idx) => {
+            const selected = customWeekStartDay === idx;
+            return (
+              <Pressable
+                key={day}
+                onPress={() => {
+                  setCustomWeekStartDay(idx);
+                  setShowWeekStartSheet(false);
+                }}
+                style={({ pressed }) => [{
+                  padding: 14,
+                  borderRadius: 16,
+                  backgroundColor: selected ? softFor(t, 'indigo') : t.surfaceAlt,
+                  borderWidth: 1,
+                  borderColor: selected ? t.indigo : t.border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  opacity: pressed ? 0.85 : 1,
+                }]}
+              >
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_700Bold',
+                  fontSize: 14,
+                  color: selected ? t.indigo : t.text,
+                }}>{day}</Text>
+                {selected && (
+                  <Icon name="check" size={16} color={t.indigo} />
+                )}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </Sheet>
+
+      {/* Premium Calendar Modal */}
+      <Modal visible={showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
+        <Pressable 
+          style={{ flex: 1, backgroundColor: 'rgba(10, 12, 22, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
+          onPress={() => setShowCalendar(false)}
+        >
+          <Pressable 
+            style={{ 
+              width: '100%', 
+              maxWidth: 340, 
+              backgroundColor: '#181A26', 
+              borderRadius: 24, 
+              padding: 20, 
+              borderWidth: 1, 
+              borderColor: '#2E3245', 
+              shadowColor: '#000', 
+              shadowOffset: { width: 0, height: 10 }, 
+              shadowOpacity: 0.3, 
+              shadowRadius: 20, 
+              elevation: 10 
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: '#fff', marginBottom: 6 }}>
+              Seleccionar Rango
+            </Text>
+            <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 13, color: t.textMuted, marginBottom: 20 }}>
+              {tempStart 
+                ? (tempEnd && tempEnd.getTime() !== tempStart.getTime()
+                  ? `Del ${tempStart.getDate()} de ${MONTHS_FULL[tempStart.getMonth()]} al ${tempEnd.getDate()} de ${MONTHS_FULL[tempEnd.getMonth()]}`
+                  : `Del ${tempStart.getDate()} de ${MONTHS_FULL[tempStart.getMonth()]} (selecciona segunda fecha)`)
+                : 'Selecciona la fecha de inicio'}
+            </Text>
+
+            {/* Navigation Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+              <Pressable onPress={prevMonth} style={{ padding: 8, borderRadius: 10, backgroundColor: '#242736' }}>
+                <Icon name="chevron-left" size={18} color="#fff" />
+              </Pressable>
+              <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, color: '#fff', textTransform: 'capitalize' }}>
+                {MONTHS_FULL[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
+              </Text>
+              <Pressable onPress={nextMonth} style={{ padding: 8, borderRadius: 10, backgroundColor: '#242736' }}>
+                <Icon name="chevron-right" size={18} color="#fff" />
+              </Pressable>
+            </View>
+
+            {/* Weekdays Header */}
+            <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+              {DAYS_OF_WEEK.map((day, idx) => (
+                <Text key={idx} style={{ width: '14.28%', textAlign: 'center', fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted }}>
+                  {day}
+                </Text>
+              ))}
+            </View>
+
+            {/* Days Grid */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 }}>
+              {getDaysInMonth(calendarMonth).map((day, idx) => {
+                if (!day) {
+                  return <View key={`empty-${idx}`} style={{ width: '14.28%', height: 40 }} />;
+                }
+                
+                const isStart = tempStart && day.toDateString() === tempStart.toDateString();
+                const isEnd = tempEnd && day.toDateString() === tempEnd.toDateString();
+                const inRange = tempStart && tempEnd && day.getTime() > tempStart.getTime() && day.getTime() < tempEnd.getTime();
+                const isToday = day.toDateString() === new Date().toDateString();
+                
+                return (
+                  <Pressable
+                    key={day.toISOString()}
+                    onPress={() => handleDayPress(day)}
+                    style={{
+                      width: '14.28%',
+                      height: 40,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginVertical: 2,
+                      backgroundColor: isStart || isEnd 
+                        ? t.indigo 
+                        : (inRange ? t.indigo + '20' : 'transparent'),
+                      borderTopLeftRadius: isStart ? 20 : 0,
+                      borderBottomLeftRadius: isStart ? 20 : 0,
+                      borderTopRightRadius: isEnd ? 20 : 0,
+                      borderBottomRightRadius: isEnd ? 20 : 0,
+                    }}
+                  >
+                    <Text style={{
+                      fontFamily: isStart || isEnd ? 'PlusJakartaSans_700Bold' : 'PlusJakartaSans_600SemiBold',
+                      fontSize: 13,
+                      color: isStart || isEnd 
+                        ? '#fff' 
+                        : (isToday ? t.indigo : '#fff'),
+                    }}>
+                      {day.getDate()}
+                    </Text>
+                    {isToday && !isStart && !isEnd && (
+                      <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: t.indigo, position: 'absolute', bottom: 4 }} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Bottom Actions */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+              <Pressable 
+                onPress={() => {
+                  setTempStart(null);
+                  setTempEnd(null);
+                }}
+                style={({ pressed }) => [{
+                  paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#242736',
+                  opacity: pressed ? 0.85 : 1
+                }]}
+              >
+                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: '#fff' }}>Limpiar</Text>
+              </Pressable>
+
+              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                <Pressable 
+                  onPress={() => setShowCalendar(false)}
+                  style={({ pressed }) => [{
+                    paddingVertical: 10, paddingHorizontal: 12,
+                    opacity: pressed ? 0.75 : 1
+                  }]}
+                >
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.textMuted }}>Cancelar</Text>
+                </Pressable>
+
+                <Pressable 
+                  onPress={handleConfirmCalendar}
+                  disabled={!tempStart || !tempEnd}
+                  style={({ pressed }) => [{ 
+                    paddingVertical: 10, 
+                    paddingHorizontal: 20, 
+                    borderRadius: 12, 
+                    backgroundColor: (tempStart && tempEnd) ? t.indigo : '#242736',
+                    opacity: (tempStart && tempEnd) ? (pressed ? 0.85 : 1) : 0.5
+                  }]}
+                >
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: '#fff' }}>Aplicar</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

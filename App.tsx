@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StatusBar, View } from 'react-native';
+import { ActivityIndicator, StatusBar, View, LogBox } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
+
+// Ignore the expo-notifications warning about remote push notifications in Expo Go,
+// since this app only uses local notifications which are fully supported.
+LogBox.ignoreLogs([
+  'expo-notifications: Android Push notifications',
+  'Remote notifications functionality provided by expo-notifications was removed from Expo Go',
+]);
 import {
   useFonts,
   PlusJakartaSans_400Regular,
