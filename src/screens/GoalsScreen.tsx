@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, TextInput, View, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import Svg, { Circle } from 'react-native-svg';
@@ -10,6 +10,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { colorFor, softFor } from '../theme/theme';
 import { SavingsGoal } from '../data/types';
 import { computeAccountBalance } from '../data/selectors';
+import { catById } from '../data/catalog';
 
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
@@ -31,9 +32,72 @@ export function GoalsScreen() {
   const [actionType, setActionType] = useState<'view' | 'deposit' | 'withdraw'>('view');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
 
+  // Carousel states
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const { width: screenWidth } = Dimensions.get('window');
+  const cardWidth = screenWidth - 32;
+
+  const onScroll = (event: any) => {
+    const x = event.nativeEvent.contentOffset.x;
+    const index = Math.round(x / (cardWidth + 12));
+    setActiveCardIndex(index);
+  };
+
   const total = goals.reduce((s, g) => s + g.current, 0);
   const target = goals.reduce((s, g) => s + g.target, 0);
   const totalPct = target > 0 ? (total / target) * 100 : 0;
+
+  // Compute budget data for the slide-to-side card
+  const budgetData = useMemo(() => {
+    return state.budgets.map(b => {
+      const cat = catById(b.categoryId, state.customCategories);
+      
+      const now = new Date();
+      let startMs = 0;
+      const p = b.period || 'monthly';
+      
+      if (p === 'weekly') {
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(now.getFullYear(), now.getMonth(), diff);
+        monday.setHours(0, 0, 0, 0);
+        startMs = monday.getTime();
+      } else if (p === 'biweekly') {
+        const isFirstHalf = now.getDate() <= 15;
+        const start = isFirstHalf 
+          ? new Date(now.getFullYear(), now.getMonth(), 1)
+          : new Date(now.getFullYear(), now.getMonth(), 16);
+        start.setHours(0, 0, 0, 0);
+        startMs = start.getTime();
+      } else {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        start.setHours(0, 0, 0, 0);
+        startMs = start.getTime();
+      }
+
+      let spent = 0;
+      for (const t of state.transactions) {
+        if (t.type === 'EXPENSE' && t.categoryId === b.categoryId && t.date >= startMs) {
+          spent += t.amount;
+        }
+      }
+
+      const pct = b.limit > 0 ? (spent / b.limit) * 100 : 0;
+      
+      return {
+        id: b.id,
+        name: cat ? cat.name : 'Presupuesto',
+        color: cat ? cat.color : 'indigo',
+        spent,
+        limit: b.limit,
+        pct,
+      };
+    }).sort((a, b) => b.pct - a.pct);
+  }, [state.budgets, state.transactions, state.customCategories]);
+
+  const totalBudgetLimit = useMemo(() => budgetData.reduce((sum, b) => sum + b.limit, 0), [budgetData]);
+  const totalBudgetSpent = useMemo(() => budgetData.reduce((sum, b) => sum + b.spent, 0), [budgetData]);
+  const overallBudgetPct = totalBudgetLimit > 0 ? (totalBudgetSpent / totalBudgetLimit) * 100 : 0;
 
   function handleActionConfirm(isDeposit: boolean) {
     if (!selectedGoal) return;
@@ -128,40 +192,127 @@ export function GoalsScreen() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{
-          borderRadius: 22, overflow: 'hidden',
-          shadowColor: t.rose, shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.4, shadowRadius: 20, elevation: 8,
-        }}>
-          <LinearGradient
-            colors={[t.rose, t.violet]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={{ padding: 22 }}
-          >
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: 'rgba(255,255,255,0.85)',
-              letterSpacing: 0.3,
-            }}>AHORRADO EN METAS</Text>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 30, color: '#fff',
-              letterSpacing: -1, marginTop: 4,
-              fontVariant: ['tabular-nums'],
-            }}>{balanceHidden ? '••••' : fmtMXN(total)}</Text>
-            <Text style={{
-              fontFamily: 'PlusJakartaSans_500Medium', fontSize: 13, color: 'rgba(255,255,255,0.85)',
-              marginTop: 2,
-            }}>de {fmtMXN(target)} totales</Text>
-            <View style={{
-              marginTop: 14, height: 6, borderRadius: 3,
-              backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden',
-            }}>
+        {/* Carousel ScrollView for Goals and Budgets */}
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          style={{ marginHorizontal: -16, marginTop: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 6 }}
+          snapToInterval={cardWidth + 12}
+          decelerationRate="fast"
+          snapToAlignment="center"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+        >
+          {/* Card 1: Goals Summary */}
+          <View style={{
+            width: cardWidth,
+            height: 152,
+            borderRadius: 22,
+            overflow: 'hidden',
+            shadowColor: t.rose,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.4,
+            shadowRadius: 20,
+            elevation: 8,
+            marginRight: 12,
+          }}>
+            <LinearGradient
+              colors={[t.rose, t.violet]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{ padding: 22, height: '100%', justifyContent: 'space-between' }}
+            >
+              <View>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: 'rgba(255,255,255,0.85)',
+                  letterSpacing: 0.3,
+                }}>AHORRADO EN METAS</Text>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 28, color: '#fff',
+                  letterSpacing: -0.8, marginTop: 4,
+                  fontVariant: ['tabular-nums'],
+                }}>{balanceHidden ? '••••' : fmtMXN(total)}</Text>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: 'rgba(255,255,255,0.85)',
+                  marginTop: 2,
+                }}>de {fmtMXN(target)} totales</Text>
+              </View>
               <View style={{
-                height: '100%',
-                width: `${Math.min(100, totalPct)}%`,
-                backgroundColor: '#fff', borderRadius: 3,
-              }} />
-            </View>
-          </LinearGradient>
+                height: 6, borderRadius: 3,
+                backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden',
+              }}>
+                <View style={{
+                  height: '100%',
+                  width: `${Math.min(100, totalPct)}%`,
+                  backgroundColor: '#fff', borderRadius: 3,
+                }} />
+              </View>
+            </LinearGradient>
+          </View>
+
+          {/* Card 2: Budgets Summary */}
+          <View style={{
+            width: cardWidth,
+            height: 152,
+            borderRadius: 22,
+            overflow: 'hidden',
+            shadowColor: t.indigo,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.4,
+            shadowRadius: 20,
+            elevation: 8,
+          }}>
+            <LinearGradient
+              colors={[t.indigo, t.violet]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{ padding: 22, height: '100%', justifyContent: 'space-between' }}
+            >
+              <View>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: 'rgba(255,255,255,0.85)',
+                  letterSpacing: 0.3,
+                }}>PRESUPUESTOS ACTIVOS</Text>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 26, color: '#fff',
+                  letterSpacing: -0.8, marginTop: 4,
+                  fontVariant: ['tabular-nums'],
+                }}>{fmtMXN(totalBudgetSpent)}</Text>
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: 'rgba(255,255,255,0.85)',
+                  marginTop: 2,
+                }}>de {fmtMXN(totalBudgetLimit)} presupuestados ({overallBudgetPct.toFixed(0)}%)</Text>
+              </View>
+
+              {/* Top 2 budgets details */}
+              <View style={{ gap: 6, marginTop: 4 }}>
+                {budgetData.slice(0, 2).map((b) => (
+                  <View key={b.id}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10.5, color: '#fff', flex: 1, marginRight: 8 }}>{b.name}</Text>
+                      <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10.5, color: '#fff', fontVariant: ['tabular-nums'] }}>
+                        {b.pct.toFixed(0)}%
+                      </Text>
+                    </View>
+                    <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' }}>
+                      <View style={{ height: '100%', width: `${Math.min(100, b.pct)}%`, backgroundColor: '#fff', borderRadius: 2 }} />
+                    </View>
+                  </View>
+                ))}
+                {budgetData.length === 0 && (
+                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginTop: 8 }}>
+                    No hay presupuestos configurados.
+                  </Text>
+                )}
+              </View>
+            </LinearGradient>
+          </View>
+        </ScrollView>
+
+        {/* Carousel Pagination Dots */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 8, marginBottom: 12 }}>
+          <View style={{ width: activeCardIndex === 0 ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: activeCardIndex === 0 ? t.rose : t.border }} />
+          <View style={{ width: activeCardIndex === 1 ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: activeCardIndex === 1 ? t.rose : t.border }} />
         </View>
 
         <View style={{ marginTop: 18, gap: 12 }}>

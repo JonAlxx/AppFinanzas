@@ -64,6 +64,9 @@ export interface Budget {
   id: string;
   categoryId: string;
   limit: number; // cents
+  period?: 'monthly' | 'weekly' | 'biweekly';
+  rollover?: number; // cents
+  prevLeftoverProcessed?: boolean;
 }
 
 export interface SavingsGoal {

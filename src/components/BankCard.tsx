@@ -72,7 +72,7 @@ export function BankCard({ acc, balance, onPress, compact, isHidden }: BankCardP
   const cardName = acc.last4 ? `•••• ${acc.last4}` : acc.name;
   const balanceText = isHidden 
     ? '••••' 
-    : (isCC && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)));
+    : (isCC && acc.limit ? fmtMXN(acc.limit + balance) : (isCC ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)));
 
   // Non-branded layout
   if (!brand) {

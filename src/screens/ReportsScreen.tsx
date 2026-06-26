@@ -5,9 +5,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { fmtMXN, fmtShort } from '../data/format';
 import { monthlySeries, CategorySpend } from '../data/selectors';
 import { catById } from '../data/catalog';
+import { Category } from '../data/types';
 import { useAppState } from '../state/AppStateContext';
 import { useTheme } from '../theme/ThemeContext';
-import { colorFor } from '../theme/theme';
+import { colorFor, softFor } from '../theme/theme';
 import { useNavigation } from '../navigation/NavigationContext';
 
 import { CategoryBadge } from '../components/Badges';
@@ -320,6 +321,163 @@ export function ReportsScreen() {
 
   const maxVal = Math.max(...chartPoints.flatMap(pt => [pt.income, pt.expense]), 1);
 
+  // MÓDULO B: Inteligencia Financiera y Proyección de Fin de Mes
+  const intelligence = useMemo(() => {
+    // 1. Proyección de Fin de Mes (Cash Flow Forecast)
+    // Obtener balance disponible en cuentas líquidas (Efectivo y Débito)
+    const liquidAccounts = state.accounts.filter(a => a.type !== 'CREDIT_CARD');
+    const currentLiquidBalance = liquidAccounts.reduce((sum, acc) => {
+      let bal = acc.initial;
+      for (const t of state.transactions) {
+        if (t.type === 'INCOME' && t.accountId === acc.id) bal += t.amount;
+        if (t.type === 'EXPENSE' && t.accountId === acc.id) bal -= t.amount;
+        if (t.type === 'TRANSFER') {
+          if (t.accountId === acc.id) bal -= t.amount;
+          if (t.destinationAccountId === acc.id) bal += t.amount;
+        }
+      }
+      return sum + bal;
+    }, 0);
+
+    // Calcular días restantes en el mes actual
+    const now = new Date();
+    const totalDaysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysRemaining = totalDaysInMonth - now.getDate();
+
+    // Sumar cobros/pagos recurrentes pendientes que vencen en lo que resta del mes
+    const endOfMonthTs = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    let pendingRecurringExpenses = 0;
+    let pendingRecurringIncomes = 0;
+
+    for (const rule of state.recurring) {
+      if (!rule.active) continue;
+      // Estimar fecha de vencimiento siguiente
+      const nextDue = rule.startDate; // Simplificación o estimación aproximada en el mes
+      if (nextDue > Date.now() && nextDue <= endOfMonthTs) {
+        if (rule.type === 'EXPENSE') pendingRecurringExpenses += rule.amount;
+        if (rule.type === 'INCOME') pendingRecurringIncomes += rule.amount;
+      }
+    }
+
+    // Estimar gasto promedio diario del mes actual
+    const startOfMonthTs = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+    const monthTxs = state.transactions.filter(t => t.date >= startOfMonthTs && t.date <= Date.now());
+    const monthExpenses = monthTxs.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
+    const daysPassed = Math.max(1, now.getDate());
+    const dailySpendRate = monthExpenses / daysPassed;
+
+    // Proyección de gastos discrecionales restantes
+    const projectedDiscretionarySpend = dailySpendRate * daysRemaining;
+
+    // Balance proyectado al cierre de mes
+    const projectedBalance = currentLiquidBalance + pendingRecurringIncomes - pendingRecurringExpenses - projectedDiscretionarySpend;
+
+    // 2. Diagnóstico de Presupuestos y Capacidad de "Darle un gusto"
+    const totalBudgetLimit = state.budgets.reduce((sum, b) => sum + b.limit, 0);
+    let totalSpentInBudgets = 0;
+    
+    for (const b of state.budgets) {
+      const spent = state.transactions
+        .filter(t => t.type === 'EXPENSE' && t.categoryId === b.categoryId && t.date >= startOfMonthTs)
+        .reduce((sum, t) => sum + t.amount, 0);
+      totalSpentInBudgets += spent;
+    }
+
+    const budgetRatio = totalBudgetLimit > 0 ? totalSpentInBudgets / totalBudgetLimit : 0;
+    
+    // Decidir si puede darse un gusto (ej. compras de ocio/caprichos)
+    // Criterio: Balance proyectado positivo, y ha consumido menos del 85% de su presupuesto total
+    let luxuryStatus: 'green' | 'yellow' | 'red' = 'green';
+    let luxuryMessage = '';
+    let luxurySub = '';
+
+    if (projectedBalance <= 0 || budgetRatio >= 1.0) {
+      luxuryStatus = 'red';
+      luxuryMessage = '🚨 ALERTA: Momento de frenar gastos';
+      luxurySub = 'Tu proyección de fin de mes es negativa o excediste tus presupuestos. Evita gastos innecesarios por ahora.';
+    } else if (budgetRatio >= 0.8 || projectedBalance < currentLiquidBalance * 0.2) {
+      luxuryStatus = 'yellow';
+      luxuryMessage = '⚠️ PRECAUCIÓN: Procede con cuidado';
+      luxurySub = 'Tienes poco margen libre. Si deseas darte un gusto, asegúrate de que sea menor a ' + fmtMXN(Math.max(0, projectedBalance * 0.1));
+    } else {
+      luxuryStatus = 'green';
+      luxuryMessage = '🎉 ¡Buen camino! Tienes margen libre';
+      luxurySub = 'Tus finanzas están sanas. Tienes un presupuesto estimado libre de ' + fmtMXN(Math.max(0, projectedBalance * 0.3)) + ' para gustos o caprichos.';
+    }
+
+    // 3. Consejos Inteligentes (Tips Contextuales)
+    const tips: { id: string; icon: string; title: string; desc: string; color: string; nav?: any }[] = [];
+    
+    // Tip 1: Presupuesto Individual más consumido
+    let worstBudgetCategory: Category | null = null;
+    let worstRatio = 0;
+    let worstSpent = 0;
+    let worstLimit = 0;
+
+    for (const b of state.budgets) {
+      const spent = state.transactions
+        .filter(t => t.type === 'EXPENSE' && t.categoryId === b.categoryId && t.date >= startOfMonthTs)
+        .reduce((sum, t) => sum + t.amount, 0);
+      const ratio = b.limit > 0 ? spent / b.limit : 0;
+      if (ratio > worstRatio) {
+        worstRatio = ratio;
+        worstSpent = spent;
+        worstLimit = b.limit;
+        worstBudgetCategory = catById(b.categoryId, state.customCategories) || null;
+      }
+    }
+
+    if (worstBudgetCategory && worstRatio >= 0.75) {
+      const roundedPct = Math.round(worstRatio * 100);
+      tips.push({
+        id: 'tip-budget',
+        icon: 'alert',
+        title: `Presupuesto de ${worstBudgetCategory.name} al ${roundedPct}%`,
+        desc: `Has consumido ${fmtMXN(worstSpent)} de tu límite de ${fmtMXN(worstLimit)}. Te sugerimos limitar esta categoría a máximo ${fmtMXN(Math.round((worstLimit - worstSpent) / Math.max(1, daysRemaining)))} diarios.`,
+        color: worstRatio >= 1.0 ? 'rose' : 'orange',
+        nav: { screen: 'budgets' },
+      });
+    }
+
+    // Tip 2: Intereses de tarjeta de crédito
+    const highInterestCards = state.accounts.filter(a => a.type === 'CREDIT_CARD' && (a.interestRate || 0) > 40);
+    if (highInterestCards.length > 0) {
+      const card = highInterestCards[0];
+      tips.push({
+        id: 'tip-interest',
+        icon: 'trending-up',
+        title: `Evita intereses en tu tarjeta ${card.name}`,
+        desc: `Tiene una tasa anual registrada del ${card.interestRate}%. Liquidar el "saldo al corte" antes de tu fecha límite te ahorrará recargos costosos.`,
+        color: 'rose',
+        nav: { screen: 'account-detail', id: card.id },
+      });
+    }
+
+    // Tip 3: Consejo de ahorro general
+    if (projectedBalance > 0 && currentLiquidBalance > 0) {
+      const potentialSavings = Math.round(projectedBalance * 0.5);
+      tips.push({
+        id: 'tip-savings',
+        icon: 'target',
+        title: 'Potencia tu Meta de Ahorro',
+        desc: `Si mantienes tu ritmo de gasto actual, podrías mandar hasta ${fmtMXN(potentialSavings)} a tus metas de ahorro al terminar el mes.`,
+        color: 'green',
+        nav: { screen: 'goals' },
+      });
+    }
+
+    return {
+      currentLiquidBalance,
+      daysRemaining,
+      projectedBalance,
+      budgetRatio,
+      luxuryStatus,
+      luxuryMessage,
+      luxurySub,
+      tips,
+    };
+  }, [state.accounts, state.transactions, state.budgets, state.recurring, state.customCategories]);
+
   const yAxisLabels = useMemo(() => {
     return [maxVal, maxVal * 0.66, maxVal * 0.33, 0];
   }, [maxVal]);
@@ -334,7 +492,7 @@ export function ReportsScreen() {
       <ScreenHeader subtitle="Tu" title="Análisis" rightIcon={null} />
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -735,6 +893,136 @@ export function ReportsScreen() {
           <View style={{ width: activeCardIndex === 0 ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: activeCardIndex === 0 ? t.indigo : t.border }} />
           <View style={{ width: activeCardIndex === 1 ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: activeCardIndex === 1 ? t.indigo : t.border }} />
         </View>
+
+        {/* MÓDULO B: Proyección Financiera de Fin de Mes (Cash Flow Forecast) */}
+        <Card style={{ marginTop: 6 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text, letterSpacing: -0.2 }}>
+              Proyección de Fin de Mes 🔮
+            </Text>
+            {(() => {
+              const alertColor = intelligence.luxuryStatus === 'red' ? 'rose' : intelligence.luxuryStatus === 'yellow' ? 'orange' : 'green';
+              return (
+                <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: softFor(t, alertColor) }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: colorFor(t, alertColor), textTransform: 'uppercase' }}>
+                    {intelligence.luxuryStatus === 'green' ? 'Saludable' : intelligence.luxuryStatus === 'yellow' ? 'Precaución' : 'Freno'}
+                  </Text>
+                </View>
+              );
+            })()}
+          </View>
+
+          {/* Luxury Decisor Box */}
+          {(() => {
+            const alertColor = intelligence.luxuryStatus === 'red' ? 'rose' : intelligence.luxuryStatus === 'yellow' ? 'orange' : 'green';
+            return (
+              <View style={{ 
+                backgroundColor: softFor(t, alertColor), 
+                paddingVertical: 14,
+                paddingHorizontal: 14, 
+                borderRadius: 14, 
+                marginBottom: 16,
+                borderWidth: 1,
+                borderColor: colorFor(t, alertColor) + '22' as any
+              }}>
+                <Text style={{ 
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', 
+                  fontSize: 13, 
+                  color: colorFor(t, alertColor),
+                  flexShrink: 1,
+                  lineHeight: 18
+                }}>
+                  {intelligence.luxuryMessage}
+                </Text>
+                <Text style={{ 
+                  fontFamily: 'PlusJakartaSans_600SemiBold', 
+                  fontSize: 11.5, 
+                  color: t.text, 
+                  marginTop: 6,
+                  flexShrink: 1,
+                  lineHeight: 16.5
+                }}>
+                  {intelligence.luxurySub}
+                </Text>
+              </View>
+            );
+          })()}
+
+          {/* Grid rows */}
+          <View style={{ gap: 10 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted }}>Saldo líquido actual</Text>
+              <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text, fontVariant: ['tabular-nums'] }}>
+                {fmtMXN(intelligence.currentLiquidBalance)}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted }}>Días restantes del mes</Text>
+              <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text, fontVariant: ['tabular-nums'] }}>
+                {intelligence.daysRemaining} días
+              </Text>
+            </View>
+            <View style={{ height: 1, backgroundColor: t.border, marginVertical: 2 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text }}>Estimación cierre de mes</Text>
+              <Text style={{ 
+                fontFamily: 'PlusJakartaSans_800ExtraBold', 
+                fontSize: 14, 
+                color: intelligence.projectedBalance >= 0 ? t.green : t.rose,
+                fontVariant: ['tabular-nums'] 
+              }}>
+                {fmtMXN(intelligence.projectedBalance)}
+              </Text>
+            </View>
+          </View>
+        </Card>
+
+        {/* MÓDULO B: Consejos Financieros Inteligentes (Tips) */}
+        {intelligence.tips.length > 0 && (
+          <View style={{ marginTop: 14 }}>
+            <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text, letterSpacing: -0.2, marginBottom: 10, paddingLeft: 4 }}>
+              Consejos Inteligentes 💡
+            </Text>
+            <View style={{ gap: 10 }}>
+              {intelligence.tips.map((tip) => (
+                <Card 
+                  key={tip.id} 
+                  padding={12} 
+                  style={{ marginTop: 0, borderWidth: 1, borderColor: t.border }}
+                  onPress={tip.nav ? () => navigate(tip.nav) : undefined}
+                >
+                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                    <View style={{ 
+                      width: 28, height: 28, borderRadius: 9, 
+                      backgroundColor: softFor(t, tip.color), 
+                      alignItems: 'center', justifyContent: 'center' 
+                    }}>
+                      <Icon 
+                        name={tip.icon} 
+                        size={14} 
+                        color={colorFor(t, tip.color)} 
+                        strokeWidth={2.5} 
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>
+                        {tip.title}
+                      </Text>
+                      <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.textMuted, marginTop: 4, lineHeight: 15 }}>
+                        {tip.desc}
+                      </Text>
+                    </View>
+                    {tip.nav && (
+                      <View style={{ alignSelf: 'center', opacity: 0.5, paddingLeft: 4 }}>
+                        <Icon name="chevron-right" size={14} color={t.textMuted} />
+                      </View>
+                    )}
+                  </View>
+                </Card>
+              ))}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Premium Calendar Modal */}

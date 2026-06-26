@@ -212,7 +212,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 28, color: '#fff',
                 letterSpacing: -0.8, marginTop: 2,
                 fontVariant: ['tabular-nums'],
-              }}>{isHidden ? '••••' : (acc.type === 'CREDIT_CARD' && acc.limit ? fmtMXN(acc.limit - Math.abs(balance)) : (acc.type === 'CREDIT_CARD' ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)))}</Text>
+              }}>{isHidden ? '••••' : (acc.type === 'CREDIT_CARD' && acc.limit ? fmtMXN(acc.limit + balance) : (acc.type === 'CREDIT_CARD' ? fmtMXN(Math.abs(balance)) : fmtMXN(balance)))}</Text>
             </LinearGradient>
           </View>
         )}
@@ -322,68 +322,74 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                     <SectionTitle title="Uso del Crédito" />
                     <Icon name={showUseSection ? "chevron-up" : "chevron-down"} size={18} color={t.textMuted} />
                   </Pressable>
-                  
-                  {showUseSection && (
-                    <>
-                      <View style={{ marginTop: 12, marginBottom: 16 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                          <Text style={{
-                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
-                          }}>Progreso de uso</Text>
-                          <Text style={{
-                            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text,
-                            fontVariant: ['tabular-nums'],
-                          }}>
-                            {((Math.abs(balance) / acc.limit) * 100).toFixed(0)}% usado
-                          </Text>
-                        </View>
-                        <ProgressBar
-                          pct={(Math.abs(balance) / acc.limit) * 100}
-                          color={acc.color || 'rose'}
-                          height={8}
-                        />
-                      </View>
+                     {showUseSection && (() => {
+                    const isPositiveBalance = balance > 0;
+                    const debtAmount = balance < 0 ? Math.abs(balance) : 0;
+                    const usedPct = acc.limit ? Math.min(100, Math.max(0, (debtAmount / acc.limit) * 100)) : 0;
+                    const availableAmount = acc.limit + balance;
 
-                      <View style={{ flexDirection: 'row', gap: 10 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{
-                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
-                            letterSpacing: 0.2,
-                          }}>LÍMITE</Text>
-                          <Text numberOfLines={1} style={{
-                            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text,
-                            marginTop: 4, fontVariant: ['tabular-nums'],
-                          }}>{isHidden ? '••••' : fmtMXN(acc.limit)}</Text>
-                        </View>
-                        
-                        <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
-
-                        <View style={{ flex: 1 }}>
-                          <Text style={{
-                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.rose,
-                            letterSpacing: 0.2,
-                          }}>USADO (DEUDA)</Text>
-                          <Text numberOfLines={1} style={{
-                            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.rose,
-                            marginTop: 4, fontVariant: ['tabular-nums'],
-                          }}>{isHidden ? '••••' : fmtMXN(Math.abs(balance))}</Text>
+                    return (
+                      <>
+                        <View style={{ marginTop: 12, marginBottom: 16 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <Text style={{
+                              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                            }}>Progreso de uso</Text>
+                            <Text style={{
+                              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text,
+                              fontVariant: ['tabular-nums'],
+                            }}>
+                              {usedPct.toFixed(0)}% usado
+                            </Text>
+                          </View>
+                          <ProgressBar
+                            pct={usedPct}
+                            color={acc.color || 'rose'}
+                            height={8}
+                          />
                         </View>
 
-                        <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{
+                              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.textMuted,
+                              letterSpacing: 0.2,
+                            }}>LÍMITE</Text>
+                            <Text numberOfLines={1} style={{
+                              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text,
+                              marginTop: 4, fontVariant: ['tabular-nums'],
+                            }}>{isHidden ? '••••' : fmtMXN(acc.limit)}</Text>
+                          </View>
+                          
+                          <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
 
-                        <View style={{ flex: 1 }}>
-                          <Text style={{
-                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.green,
-                            letterSpacing: 0.2,
-                          }}>DISPONIBLE</Text>
-                          <Text numberOfLines={1} style={{
-                            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.green,
-                            marginTop: 4, fontVariant: ['tabular-nums'],
-                          }}>{isHidden ? '••••' : fmtMXN(acc.limit - Math.abs(balance))}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{
+                              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: isPositiveBalance ? t.green : t.rose,
+                              letterSpacing: 0.1,
+                            }}>{isPositiveBalance ? 'SALDO A FAVOR' : 'USADO (DEUDA)'}</Text>
+                            <Text numberOfLines={1} style={{
+                              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: isPositiveBalance ? t.green : t.rose,
+                              marginTop: 4, fontVariant: ['tabular-nums'],
+                            }}>{isHidden ? '••••' : fmtMXN(isPositiveBalance ? balance : debtAmount)}</Text>
+                          </View>
+
+                          <View style={{ width: 1, backgroundColor: t.border, alignSelf: 'stretch' }} />
+
+                          <View style={{ flex: 1 }}>
+                            <Text style={{
+                              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.green,
+                              letterSpacing: 0.2,
+                            }}>DISPONIBLE</Text>
+                            <Text numberOfLines={1} style={{
+                              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.green,
+                              marginTop: 4, fontVariant: ['tabular-nums'],
+                            }}>{isHidden ? '••••' : fmtMXN(availableAmount)}</Text>
+                          </View>
                         </View>
-                      </View>
-                    </>
-                  )}
+                      </>
+                    );
+                  })()}
                 </Card>
 
                 {/* Módulo 2: Fechas y Estado de Cuenta (Colapsable) */}

@@ -439,7 +439,7 @@ export function DashboardScreen() {
                   </View>
                 </View>
               </View>
-              <Text style={{
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
                 letterSpacing: -1.5, marginTop: 8,
                 fontVariant: ['tabular-nums'],
@@ -524,7 +524,7 @@ export function DashboardScreen() {
                   </View>
                 </View>
               </View>
-              <Text style={{
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
                 letterSpacing: -1.5, marginTop: 8,
                 fontVariant: ['tabular-nums'],
@@ -609,7 +609,7 @@ export function DashboardScreen() {
                   </View>
                 </View>
               </View>
-              <Text style={{
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
                 letterSpacing: -1.5, marginTop: 8,
                 fontVariant: ['tabular-nums'],
@@ -694,7 +694,7 @@ export function DashboardScreen() {
                   </View>
                 </View>
               </View>
-              <Text style={{
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
                 letterSpacing: -1.5, marginTop: 8,
                 fontVariant: ['tabular-nums'],
@@ -779,7 +779,7 @@ export function DashboardScreen() {
                   </View>
                 </View>
               </View>
-              <Text style={{
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
                 letterSpacing: -1.5, marginTop: 8,
                 fontVariant: ['tabular-nums'],
@@ -864,7 +864,7 @@ export function DashboardScreen() {
                   </View>
                 </View>
               </View>
-              <Text style={{
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{
                 fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
                 letterSpacing: -1.5, marginTop: 8,
                 fontVariant: ['tabular-nums'],
@@ -896,6 +896,195 @@ export function DashboardScreen() {
             </LinearGradient>
           </Pressable>
         );
+      case 'goals': {
+        const goalsTarget = goals.reduce((s, g) => s + g.target, 0);
+        const goalsPct = goalsTarget > 0 ? (healthScore.totalSaved / goalsTarget) * 100 : 0;
+        return (
+          <Pressable
+            key="goals"
+            onPress={() => navigate('goals')}
+            onLongPress={() => setShowOrderSheet(true)}
+            delayLongPress={300}
+            style={({ pressed }) => [{
+              width: 280, height: 255, borderRadius: 28, overflow: 'hidden',
+              shadowColor: t.rose, shadowOffset: { width: 0, height: 12 },
+              shadowOpacity: 0.5, shadowRadius: 30, elevation: 12,
+              opacity: pressed ? 0.95 : 1,
+            }]}
+          >
+            <LinearGradient
+              colors={[t.rose, '#EC4899']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{ padding: 22, position: 'relative', overflow: 'hidden', flex: 1, justifyContent: 'space-between' }}
+            >
+              <View style={{ position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+              <View style={{ position: 'absolute', bottom: -40, left: -40, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+              
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 2 }}>
+                <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: '#FFE4E6', letterSpacing: 0.3, flex: 1, marginRight: 8 }}>
+                  METAS DE AHORRO
+                </Text>
+                <View style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
+                  backgroundColor: 'rgba(255,255,255,0.18)',
+                }}>
+                  <Icon name="target" size={11} color="#fff" />
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                </View>
+              </View>
+
+              <View style={{ zIndex: 1, marginTop: 4 }}>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
+                  letterSpacing: -1.5, fontVariant: ['tabular-nums'],
+                }}>
+                  {isHidden ? '••••' : fmtMXN(healthScore.totalSaved)}
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11.5, color: 'rgba(255,255,255,0.8)' }}>
+                    Progreso total
+                  </Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11.5, color: '#fff', fontVariant: ['tabular-nums'] }}>
+                    {goalsPct.toFixed(0)}%
+                  </Text>
+                </View>
+                <View style={{ height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden', marginTop: 4 }}>
+                  <View style={{ height: '100%', width: `${Math.min(100, goalsPct)}%`, backgroundColor: '#fff', borderRadius: 2.5 }} />
+                </View>
+              </View>
+
+              {/* Unified 2-column info box */}
+              <View style={{
+                marginTop: 8, padding: 12, borderRadius: 18,
+                backgroundColor: 'rgba(255,255,255,0.10)',
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+                flexDirection: 'row', gap: 12, alignItems: 'center',
+                zIndex: 1,
+              }}>
+                <MiniStat icon="piggy" iconColor="#FDA4AF" label="Ahorrado" value={isHidden ? '••••' : fmtMXN(healthScore.totalSaved)} />
+                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'stretch' }} />
+                <MiniStat icon="target" iconColor="#93C5FD" label="Meta" value={isHidden ? '••••' : fmtMXN(goalsTarget)} />
+              </View>
+
+              <Pressable
+                onPress={() => navigate('goals')}
+                style={({ pressed }) => [{
+                  marginTop: 8, paddingVertical: 10, borderRadius: 14,
+                  backgroundColor: 'rgba(255,255,255,0.16)',
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  opacity: pressed ? 0.75 : 1,
+                  zIndex: 2,
+                }]}
+              >
+                <Icon name="target" size={15} color="#fff" strokeWidth={2.5} />
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: '#fff' }}>
+                  Ver metas
+                </Text>
+              </Pressable>
+            </LinearGradient>
+          </Pressable>
+        );
+      }
+      case 'budgets': {
+        const overallPct = healthScore.totalBudgetLimit > 0 ? (healthScore.totalBudgetSpent / healthScore.totalBudgetLimit) * 100 : 0;
+        const remainingBudget = Math.max(0, healthScore.totalBudgetLimit - healthScore.totalBudgetSpent);
+        const realFunds = debitTotals.total + cashTotals.total;
+        return (
+          <Pressable
+            key="budgets"
+            onPress={() => navigate('budgets')}
+            onLongPress={() => setShowOrderSheet(true)}
+            delayLongPress={300}
+            style={({ pressed }) => [{
+              width: 280, height: 255, borderRadius: 28, overflow: 'hidden',
+              shadowColor: t.indigo, shadowOffset: { width: 0, height: 12 },
+              shadowOpacity: 0.5, shadowRadius: 30, elevation: 12,
+              opacity: pressed ? 0.95 : 1,
+            }]}
+          >
+            <LinearGradient
+              colors={[t.indigo, t.violet]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={{ padding: 22, position: 'relative', overflow: 'hidden', flex: 1, justifyContent: 'space-between' }}
+            >
+              <View style={{ position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+              <View style={{ position: 'absolute', bottom: -40, left: -40, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+              
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 2 }}>
+                <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: '#C7D2FE', letterSpacing: 0.3, flex: 1, marginRight: 8 }}>
+                  PRESUPUESTOS
+                </Text>
+                <View style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100,
+                  backgroundColor: 'rgba(255,255,255,0.18)',
+                }}>
+                  <Icon name="chart" size={11} color="#fff" />
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: '#fff' }}>MXN</Text>
+                </View>
+              </View>
+
+              <View style={{ zIndex: 1, marginTop: 4 }}>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{
+                  fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 36, color: '#fff',
+                  letterSpacing: -1.5, fontVariant: ['tabular-nums'],
+                }}>
+                  {isHidden ? '••••' : fmtMXN(healthScore.totalBudgetSpent)}
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11.5, color: 'rgba(255,255,255,0.8)' }}>
+                    Progreso total gastado
+                  </Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11.5, color: '#fff', fontVariant: ['tabular-nums'] }}>
+                    {overallPct.toFixed(0)}%
+                  </Text>
+                </View>
+                <View style={{ height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden', marginTop: 4 }}>
+                  <View style={{ height: '100%', width: `${Math.min(100, overallPct)}%`, backgroundColor: '#fff', borderRadius: 2.5 }} />
+                </View>
+                
+                {/* Real funds link message */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34D399' }} />
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10.5, color: '#A7F3D0' }}>
+                    Fondos reales (Débito + Efectivo): {isHidden ? '••••' : fmtMXN(realFunds)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Unified 2-column info box */}
+              <View style={{
+                marginTop: 6, padding: 10, borderRadius: 16,
+                backgroundColor: 'rgba(255,255,255,0.10)',
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+                flexDirection: 'row', gap: 12, alignItems: 'center',
+                zIndex: 1,
+              }}>
+                <MiniStat icon="lock" iconColor="#A5B4FC" label="LÍMITE" value={isHidden ? '••••' : fmtMXN(healthScore.totalBudgetLimit)} />
+                <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'stretch' }} />
+                <MiniStat icon="check" iconColor="#6EE7B7" label="DISPONIBLE" value={isHidden ? '••••' : fmtMXN(remainingBudget)} />
+              </View>
+
+              <Pressable
+                onPress={() => navigate('budgets')}
+                style={({ pressed }) => [{
+                  marginTop: 6, paddingVertical: 10, borderRadius: 14,
+                  backgroundColor: 'rgba(255,255,255,0.16)',
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  opacity: pressed ? 0.75 : 1,
+                  zIndex: 2,
+                }]}
+              >
+                <Icon name="chart" size={15} color="#fff" strokeWidth={2.5} />
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: '#fff' }}>
+                  Ver presupuestos
+                </Text>
+              </Pressable>
+            </LinearGradient>
+          </Pressable>
+        );
+      }
       default:
         return null;
     }
@@ -985,18 +1174,16 @@ export function DashboardScreen() {
 
         {/* Quick actions row 1 */}
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-          <QuickAction icon="arrow-down" color="green" label="Ingreso" onPress={() => navigate({ screen: 'add-transaction', type: 'INCOME' })} />
-          <QuickAction icon="arrow-up" color="rose" label="Gasto" onPress={() => navigate({ screen: 'add-transaction', type: 'EXPENSE' })} />
-          <QuickAction icon="transfer" color="indigo" label="Transferir" onPress={() => navigate({ screen: 'add-transaction', type: 'TRANSFER' })} />
+          <QuickAction icon="plus" color="indigo" label="Registrar" onPress={() => navigate({ screen: 'add-transaction', type: 'EXPENSE' })} />
+          <QuickAction icon="chart" color="teal" label="Presupuestos" onPress={() => navigate('budgets')} />
           <QuickAction icon="target" color="violet" label="Metas" onPress={() => navigate('goals')} />
         </View>
 
         {/* Quick actions row 2 */}
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-          <QuickAction icon="rotate" color="violet" label="Recurrentes" onPress={() => navigate('recurring')} />
+          <QuickAction icon="rotate" color="orange" label="Recurrentes" onPress={() => navigate('recurring')} />
           <QuickAction icon="calendar" color="blue" label="Calendario" onPress={() => navigate('calendar')} />
-          <QuickAction icon="calculator" color="teal" label="Calculadora" onPress={() => navigate('calculator')} />
-          <QuickAction icon="cog" color="indigo" label="Ajustes" onPress={() => navigate('settings')} />
+          <QuickAction icon="calculator" color="indigo" label="Calculadora" onPress={() => navigate('calculator')} />
         </View>
 
         {/* Score de Salud Financiera */}
@@ -1260,119 +1447,136 @@ export function DashboardScreen() {
       </ScrollView>
 
       {/* Reordering Sheet */}
-      <Sheet open={showOrderSheet} onClose={() => setShowOrderSheet(false)} height="45%">
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}>
+      <Sheet open={showOrderSheet} onClose={() => setShowOrderSheet(false)} height="60%">
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 }}>
           <Text style={{
             fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
             letterSpacing: -0.3, marginBottom: 16,
           }}>Organizar balance</Text>
           
-          {order.map((cardType, index) => {
-            const isFirst = index === 0;
-            const isLast = index === order.length - 1;
-            
-            let label = '';
-            let iconName: IconName = 'wallet';
-            let badgeColor = t.indigo;
-            let bgSoft = softFor(t, 'indigo');
-            
-            if (cardType === 'debit') {
-              label = 'Débito y cuentas';
-              iconName = 'wallet';
-              badgeColor = t.indigo;
-              bgSoft = softFor(t, 'indigo');
-            } else if (cardType === 'cash') {
-              label = 'Efectivo';
-              iconName = 'cash';
-              badgeColor = t.green;
-              bgSoft = softFor(t, 'green');
-            } else if (cardType === 'credit') {
-              label = 'Tarjetas de crédito';
-              iconName = 'card';
-              badgeColor = t.rose;
-              bgSoft = softFor(t, 'rose');
-            } else if (cardType === 'savings') {
-              label = 'Ahorro';
-              iconName = 'piggy';
-              badgeColor = t.rose;
-              bgSoft = softFor(t, 'rose');
-            } else if (cardType === 'investment') {
-              label = 'Inversión';
-              iconName = 'trending';
-              badgeColor = t.violet;
-              bgSoft = softFor(t, 'violet');
-            } else if (cardType === 'vouchers') {
-              label = 'Vales de despensa';
-              iconName = 'wallet';
-              badgeColor = '#E30613';
-              bgSoft = '#FEE2E2';
-            }
-            
-            return (
-              <View
-                key={cardType}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  borderRadius: 16,
-                  backgroundColor: t.surfaceAlt,
-                  borderWidth: 1,
-                  borderColor: t.border,
-                  marginBottom: 10,
-                  gap: 12,
-                }}
-              >
-                <View style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  backgroundColor: bgSoft,
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Icon name={iconName} size={18} color={badgeColor} strokeWidth={2.4} />
+          <ScrollView 
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          >
+            {order.map((cardType, index) => {
+              const isFirst = index === 0;
+              const isLast = index === order.length - 1;
+              
+              let label = '';
+              let iconName: IconName = 'wallet';
+              let badgeColor = t.indigo;
+              let bgSoft = softFor(t, 'indigo');
+              
+              if (cardType === 'debit') {
+                label = 'Débito y cuentas';
+                iconName = 'wallet';
+                badgeColor = t.indigo;
+                bgSoft = softFor(t, 'indigo');
+              } else if (cardType === 'cash') {
+                label = 'Efectivo';
+                iconName = 'cash';
+                badgeColor = t.green;
+                bgSoft = softFor(t, 'green');
+              } else if (cardType === 'credit') {
+                label = 'Tarjetas de crédito';
+                iconName = 'card';
+                badgeColor = t.rose;
+                bgSoft = softFor(t, 'rose');
+              } else if (cardType === 'savings') {
+                label = 'Ahorro';
+                iconName = 'piggy';
+                badgeColor = t.rose;
+                bgSoft = softFor(t, 'rose');
+              } else if (cardType === 'investment') {
+                label = 'Inversión';
+                iconName = 'trending';
+                badgeColor = t.violet;
+                bgSoft = softFor(t, 'violet');
+              } else if (cardType === 'vouchers') {
+                label = 'Vales de despensa';
+                iconName = 'wallet';
+                badgeColor = '#E30613';
+                bgSoft = '#FEE2E2';
+              } else if (cardType === 'goals') {
+                label = 'Metas de Ahorro';
+                iconName = 'target';
+                badgeColor = t.indigo;
+                bgSoft = softFor(t, 'indigo');
+              } else if (cardType === 'budgets') {
+                label = 'Presupuestos';
+                iconName = 'chart';
+                badgeColor = t.green;
+                bgSoft = softFor(t, 'green');
+              }
+              
+              return (
+                <View
+                  key={cardType}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderRadius: 16,
+                    backgroundColor: t.surfaceAlt,
+                    borderWidth: 1,
+                    borderColor: t.border,
+                    marginBottom: 10,
+                    gap: 12,
+                  }}
+                >
+                  <View style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    backgroundColor: bgSoft,
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon name={iconName} size={18} color={badgeColor} strokeWidth={2.4} />
+                  </View>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold',
+                    fontSize: 14,
+                    color: t.text,
+                    flex: 1,
+                  }}>
+                    {label}
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Pressable
+                      disabled={isFirst}
+                      onPress={() => moveCard(index, 'up')}
+                      style={({ pressed }) => [{
+                        width: 32, height: 32, borderRadius: 10,
+                        backgroundColor: isFirst ? 'transparent' : t.surface,
+                        alignItems: 'center', justifyContent: 'center',
+                        opacity: isFirst ? 0.3 : pressed ? 0.7 : 1,
+                      }]}
+                    >
+                      <Icon name="chevron-up" size={18} color={isFirst ? t.textMuted : t.text} strokeWidth={2.5} />
+                    </Pressable>
+                    <Pressable
+                      disabled={isLast}
+                      onPress={() => moveCard(index, 'down')}
+                      style={({ pressed }) => [{
+                        width: 32, height: 32, borderRadius: 10,
+                        backgroundColor: isLast ? 'transparent' : t.surface,
+                        alignItems: 'center', justifyContent: 'center',
+                        opacity: isLast ? 0.3 : pressed ? 0.7 : 1,
+                      }]}
+                    >
+                      <Icon name="chevron-down" size={18} color={isLast ? t.textMuted : t.text} strokeWidth={2.5} />
+                    </Pressable>
+                  </View>
                 </View>
-                <Text style={{
-                  fontFamily: 'PlusJakartaSans_700Bold',
-                  fontSize: 14,
-                  color: t.text,
-                  flex: 1,
-                }}>
-                  {label}
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  <Pressable
-                    disabled={isFirst}
-                    onPress={() => moveCard(index, 'up')}
-                    style={({ pressed }) => [{
-                      width: 32, height: 32, borderRadius: 10,
-                      backgroundColor: isFirst ? 'transparent' : t.surface,
-                      alignItems: 'center', justifyContent: 'center',
-                      opacity: isFirst ? 0.3 : pressed ? 0.7 : 1,
-                    }]}
-                  >
-                    <Icon name="chevron-up" size={18} color={isFirst ? t.textMuted : t.text} strokeWidth={2.5} />
-                  </Pressable>
-                  <Pressable
-                    disabled={isLast}
-                    onPress={() => moveCard(index, 'down')}
-                    style={({ pressed }) => [{
-                      width: 32, height: 32, borderRadius: 10,
-                      backgroundColor: isLast ? 'transparent' : t.surface,
-                      alignItems: 'center', justifyContent: 'center',
-                      opacity: isLast ? 0.3 : pressed ? 0.7 : 1,
-                    }]}
-                  >
-                    <Icon name="chevron-down" size={18} color={isLast ? t.textMuted : t.text} strokeWidth={2.5} />
-                  </Pressable>
-                </View>
-              </View>
-            );
-          })}
+              );
+            })}
+          </ScrollView>
 
           <Pressable
             onPress={() => setShowOrderSheet(false)}
             style={({ pressed }) => [{
               marginTop: 10,
+              marginBottom: 10,
               paddingVertical: 14,
               borderRadius: 16,
               backgroundColor: t.indigo,
