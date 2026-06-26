@@ -115,7 +115,7 @@ export function GoalsScreen() {
       const sourceAcc = state.accounts.find(a => a.id === selectedAccountId);
       if (sourceAcc) {
         const bal = computeAccountBalance(sourceAcc, state.transactions);
-        const avail = sourceAcc.type === 'CREDIT_CARD' ? Math.max(0, (sourceAcc.limit || 0) - Math.abs(bal)) : bal;
+        const avail = sourceAcc.type === 'CREDIT_CARD' ? Math.max(0, (sourceAcc.limit || 0) + bal) : bal;
         if (centsVal > avail) {
           Alert.alert(
             'Saldo insuficiente',
@@ -596,7 +596,7 @@ export function GoalsScreen() {
                     const bgSelected = softFor(t, acc.color);
                     const colorTheme = colorFor(t, acc.color);
                     const bal = computeAccountBalance(acc, state.transactions);
-                    const avail = acc.type === 'CREDIT_CARD' ? Math.max(0, (acc.limit || 0) - Math.abs(bal)) : bal;
+                    const avail = acc.type === 'CREDIT_CARD' ? Math.max(0, (acc.limit || 0) + bal) : bal;
 
                     return (
                       <Pressable

@@ -63,14 +63,18 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
     const creditAccts = balances.filter(isCreditAccount);
     let totalLimit = 0;
     let totalUsed = 0;
+    let totalAvailable = 0;
     for (const acc of creditAccts) {
-      totalLimit += acc.limit || 0;
-      totalUsed += Math.abs(acc.balance);
+      const limit = acc.limit || 0;
+      const debt = acc.balance < 0 ? Math.abs(acc.balance) : 0;
+      totalLimit += limit;
+      totalUsed += debt;
+      totalAvailable += Math.max(0, limit + acc.balance);
     }
     return {
       limit: totalLimit,
       used: totalUsed,
-      available: Math.max(0, totalLimit - totalUsed),
+      available: totalAvailable,
     };
   }, [balances]);
 
@@ -348,20 +352,25 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
                           compact
                           isHidden={secIsHidden}
                         />
-                        {isCC && acc.limit ? (
-                          <View style={{ marginTop: 8, paddingHorizontal: 4 }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <Text style={{
-                                fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.textMuted,
-                              }}>Disponible</Text>
-                              <Text style={{
-                                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.text,
-                                fontVariant: ['tabular-nums'],
-                              }}>{secIsHidden ? '•••• de ••••' : `${fmtMXN(acc.limit - Math.abs(acc.balance))} de ${fmtMXN(acc.limit)}`}</Text>
+                        {isCC && acc.limit ? (() => {
+                          const availableCredit = acc.limit + acc.balance;
+                          const debt = acc.balance < 0 ? Math.abs(acc.balance) : 0;
+                          const pct = (debt / acc.limit) * 100;
+                          return (
+                            <View style={{ marginTop: 8, paddingHorizontal: 4 }}>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <Text style={{
+                                  fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.textMuted,
+                                }}>Disponible</Text>
+                                <Text style={{
+                                  fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.text,
+                                  fontVariant: ['tabular-nums'],
+                                }}>{secIsHidden ? '•••• de ••••' : `${fmtMXN(availableCredit)} de ${fmtMXN(acc.limit)}`}</Text>
+                              </View>
+                              <ProgressBar pct={pct} color={acc.color} height={5} />
                             </View>
-                            <ProgressBar pct={(Math.abs(acc.balance) / acc.limit) * 100} color={acc.color} height={5} />
-                          </View>
-                        ) : null}
+                          );
+                        })() : null}
                       </View>
                     );
                   })}

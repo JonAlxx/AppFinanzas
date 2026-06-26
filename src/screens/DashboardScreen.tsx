@@ -148,12 +148,15 @@ export function DashboardScreen() {
   const creditStats = useMemo(() => {
     let totalLimit = 0;
     let totalUsed = 0;
+    let totalAvailable = 0;
     for (const acc of creditAccounts) {
+      const limit = acc.limit || 0;
       const bal = computeAccountBalance(acc, transactions);
-      totalLimit += acc.limit || 0;
-      totalUsed += Math.abs(bal);
+      const debt = bal < 0 ? Math.abs(bal) : 0;
+      totalLimit += limit;
+      totalUsed += debt;
+      totalAvailable += Math.max(0, limit + bal);
     }
-    const totalAvailable = Math.max(0, totalLimit - totalUsed);
     return {
       limit: totalLimit,
       used: totalUsed,

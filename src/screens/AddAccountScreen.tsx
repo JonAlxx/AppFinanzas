@@ -46,7 +46,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
     if (!editing) return '';
     const val = editing.initial / 100;
     if (editing.type === 'CREDIT_CARD' && editing.limit) {
-      const available = (editing.limit - Math.abs(editing.initial)) / 100;
+      const available = (editing.limit + editing.initial) / 100;
       return available.toFixed(2);
     }
     return val.toFixed(2);
@@ -131,8 +131,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
     
     if (isCC) {
       const limitNum = parseFloat(limit) || 0;
-      const debt = Math.max(0, limitNum - balanceNum);
-      finalInitial = -Math.abs(debt);
+      finalInitial = balanceNum - limitNum;
       limitCents = Math.round(limitNum * 100);
     }
     
@@ -167,7 +166,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
 
   // Preview account object for BankCard rendering
   const limitNum = parseFloat(limit) || 0;
-  const previewInitial = type === 'CREDIT_CARD' ? -Math.max(0, limitNum - balanceNum) : balanceNum;
+  const previewInitial = type === 'CREDIT_CARD' ? balanceNum - limitNum : balanceNum;
 
   const previewAcc: Account = {
     id: 'preview',
