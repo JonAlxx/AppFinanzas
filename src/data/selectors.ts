@@ -45,6 +45,63 @@ export function computeAccountBalance(account: Account, txs: Transaction[]): num
   return bal;
 }
 
+export function calculateStatementBalance(account: Account, txs: Transaction[]): number {
+  if (account.type !== 'CREDIT_CARD' || !account.statementDay) return 0;
+  
+  const now = new Date();
+  const sd = account.statementDay;
+  
+  let cutoffDate = new Date(now.getFullYear(), now.getMonth(), sd);
+  // Set to end of the day for cutoff to include all transactions on that day
+  cutoffDate.setHours(23, 59, 59, 999);
+  
+  if (cutoffDate.getTime() > now.getTime()) {
+    cutoffDate = new Date(now.getFullYear(), now.getMonth() - 1, sd);
+    cutoffDate.setHours(23, 59, 59, 999);
+  }
+  
+  let totalExpensesToCutoff = Math.abs(account.initial || 0);
+  let totalPaymentsToNow = 0;
+  
+  for (const t of txs) {
+    const isOut = (t.type === 'EXPENSE' && t.accountId === account.id) || (t.type === 'TRANSFER' && t.accountId === account.id);
+    const isIn = (t.type === 'INCOME' && t.accountId === account.id) || (t.type === 'TRANSFER' && t.destinationAccountId === account.id);
+    
+    if (isOut && t.date <= cutoffDate.getTime()) {
+       if (t.msiMonths && t.msiMonths > 0) {
+          let cutoffsPassed = 0;
+          let tempDate = new Date(t.date);
+          
+          let firstCutoff = new Date(tempDate.getFullYear(), tempDate.getMonth(), sd);
+          firstCutoff.setHours(23, 59, 59, 999);
+          if (firstCutoff.getTime() < tempDate.getTime()) {
+             firstCutoff = new Date(tempDate.getFullYear(), tempDate.getMonth() + 1, sd);
+             firstCutoff.setHours(23, 59, 59, 999);
+          }
+          
+          let currentCutoff = new Date(firstCutoff.getTime());
+          while (currentCutoff.getTime() <= cutoffDate.getTime()) {
+             cutoffsPassed++;
+             currentCutoff = new Date(currentCutoff.getFullYear(), currentCutoff.getMonth() + 1, sd);
+             currentCutoff.setHours(23, 59, 59, 999);
+          }
+          
+          let monthsToCharge = Math.min(cutoffsPassed, t.msiMonths);
+          totalExpensesToCutoff += (t.amount / t.msiMonths) * monthsToCharge;
+       } else {
+          totalExpensesToCutoff += t.amount;
+       }
+    }
+    
+    if (isIn) {
+        totalPaymentsToNow += t.amount;
+    }
+  }
+  
+  const remaining = totalExpensesToCutoff - totalPaymentsToNow;
+  return Math.max(0, remaining);
+}
+
 export interface Totals { total: number; income: number; expense: number }
 
 export function computeTotals(accounts: Account[], txs: Transaction[], range = 30): Totals {

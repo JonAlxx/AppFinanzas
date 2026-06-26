@@ -3,7 +3,7 @@ import { AppNotification, AppState } from '../data/types';
 import { materializeRecurring, upcomingPayments } from '../data/selectors';
 import { Action, initialState, reducer } from './reducer';
 import { saveState } from './persistence';
-import { scheduleRecurringNotifications } from '../utils/notifications';
+import { scheduleRecurringNotifications, scheduleCreditCardNotifications } from '../utils/notifications';
 
 interface AppStateContextValue {
   state: AppState;
@@ -99,6 +99,18 @@ export function AppStateProvider({
       state.recurring,
       state.transactions,
       state.accounts,
+      state.pushNotificationsEnabled ?? true,
+      state.notificationDaysBefore ?? 3,
+      state.notificationHour ?? 9,
+      state.notificationMinute ?? 0,
+      state.notificationHour2 ?? 21,
+      state.notificationMinute2 ?? 0,
+      state.notificationFrequency ?? 'twice'
+    );
+    
+    scheduleCreditCardNotifications(
+      state.accounts,
+      state.transactions,
       state.pushNotificationsEnabled ?? true,
       state.notificationDaysBefore ?? 3,
       state.notificationHour ?? 9,

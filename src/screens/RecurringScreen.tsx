@@ -114,11 +114,25 @@ export function RecurringScreen() {
   }, [state.recurring]);
 
   const monthlyOut = useMemo(() => {
-    return subs.filter(r => r.active && r.frequency === 'monthly').reduce((s, r) => s + r.amount, 0);
+    return subs.filter(r => r.active).reduce((s, r) => {
+      let multiplier = 0;
+      if (r.frequency === 'monthly') multiplier = 1;
+      else if (r.frequency === 'biweekly') multiplier = 2;
+      else if (r.frequency === 'weekly') multiplier = 4;
+      else if (r.frequency === 'yearly') multiplier = 1 / 12;
+      return s + r.amount * multiplier;
+    }, 0);
   }, [subs]);
 
   const monthlyIn = useMemo(() => {
-    return income.filter(r => r.active && r.frequency === 'monthly').reduce((s, r) => s + r.amount, 0);
+    return income.filter(r => r.active).reduce((s, r) => {
+      let multiplier = 0;
+      if (r.frequency === 'monthly') multiplier = 1;
+      else if (r.frequency === 'biweekly') multiplier = 2;
+      else if (r.frequency === 'weekly') multiplier = 4;
+      else if (r.frequency === 'yearly') multiplier = 1 / 12;
+      return s + r.amount * multiplier;
+    }, 0);
   }, [income]);
 
   return (

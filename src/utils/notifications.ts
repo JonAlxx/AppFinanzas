@@ -171,6 +171,99 @@ export async function scheduleRecurringNotifications(
 }
 
 /**
+ * Schedules native local notifications for upcoming credit card payments.
+ */
+export async function scheduleCreditCardNotifications(
+  accounts: any[],
+  transactions: Transaction[],
+  pushEnabled: boolean = true,
+  daysBefore: number = 3,
+  hour: number = 9,
+  minute: number = 0,
+  hour2: number = 21,
+  minute2: number = 0,
+  frequency: string = 'twice'
+) {
+  if (!Notifications) return;
+  if (Platform.OS === 'web') return;
+
+  try {
+    if (!pushEnabled) return;
+
+    const hasPermission = await requestNotificationPermissions();
+    if (!hasPermission) return;
+
+    const now = Date.now();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let scheduledCount = 0;
+
+    for (const acc of accounts) {
+      if (acc.type === 'CREDIT_CARD' && acc.paymentDay) {
+        // We only want to alert if there's an actual statement balance to pay
+        const { calculateStatementBalance } = require('../data/selectors');
+        const statementBalance = calculateStatementBalance(acc, transactions);
+        if (statementBalance <= 0) continue;
+
+        // Determine the next payment date
+        let paymentDate = new Date(today.getFullYear(), today.getMonth(), acc.paymentDay);
+        paymentDate.setHours(0, 0, 0, 0);
+        
+        // If payment day already passed this month, the next one is next month
+        if (paymentDate.getTime() < today.getTime()) {
+          paymentDate = new Date(today.getFullYear(), today.getMonth() + 1, acc.paymentDay);
+          paymentDate.setHours(0, 0, 0, 0);
+        }
+
+        const amountFormatted = (statementBalance / 100).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+
+        for (let daysBeforeIdx = daysBefore; daysBeforeIdx >= 1; daysBeforeIdx--) {
+          const alertDate = new Date(paymentDate);
+          alertDate.setDate(alertDate.getDate() - daysBeforeIdx);
+          alertDate.setHours(0, 0, 0, 0);
+
+          const hourSlots = frequency === 'once' ? [hour] : [hour, hour2];
+
+          for (const hr of hourSlots) {
+            const triggerDate = new Date(alertDate.getTime());
+            if (hr === hour) {
+              triggerDate.setHours(hour, minute, 0, 0);
+            } else {
+              triggerDate.setHours(hour2, minute2, 0, 0);
+            }
+
+            if (triggerDate.getTime() > now && triggerDate.getTime() <= (now + 10 * 24 * 60 * 60 * 1000)) { // within 10 days
+              const daysText = daysBeforeIdx === 1 ? 'Mañana' : `Faltan ${daysBeforeIdx} días`;
+              const title = `Pago de Tarjeta: ${acc.name}`;
+              const body = `⚠️ ${daysText} es la fecha límite de pago. Tienes un saldo al corte de ${amountFormatted} pesos.`;
+
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title,
+                  body,
+                  sound: true,
+                  channelId: 'default',
+                  data: { accountId: acc.id, paymentDate: paymentDate.getTime() },
+                },
+                trigger: {
+                  type: 'date',
+                  timestamp: triggerDate.getTime(),
+                } as any,
+              });
+              scheduledCount++;
+            }
+          }
+        }
+      }
+    }
+    console.log(`Programadas ${scheduledCount} alertas para pago de tarjetas.`);
+  } catch (error) {
+    console.warn('Error al programar alertas de tarjetas:', error);
+  }
+}
+
+/**
  * Triggers a native test notification on the device exactly 2 seconds in the future.
  */
 export async function triggerImmediateTestNotification(amount: number, note: string, isIncome: boolean) {

@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { labelType } from '../data/catalog';
 import { fmtMXN } from '../data/format';
-import { computeAccountBalance, getCardTypeForAccount } from '../data/selectors';
+import { calculateStatementBalance, computeAccountBalance, getCardTypeForAccount } from '../data/selectors';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -82,7 +82,12 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
       ? acc.statementMinimumPayment 
       : Math.round(initialStatementBalance * 0.05);
 
-    const remainingStatement = Math.max(0, initialStatementBalance - totalPayments);
+    // Use our advanced auto statement balance logic if there's no manual override
+    const calculatedStatement = calculateStatementBalance(acc, state.transactions);
+    const remainingStatement = acc.statementBalance !== undefined 
+      ? Math.max(0, initialStatementBalance - totalPayments) 
+      : calculatedStatement;
+      
     const remainingMin = Math.max(0, initialMinimumPayment - totalPayments);
 
     return {
@@ -325,7 +330,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                      {showUseSection && (() => {
                     const isPositiveBalance = balance > 0;
                     const debtAmount = balance < 0 ? Math.abs(balance) : 0;
-                    const usedPct = acc.limit ? Math.min(100, Math.max(0, (debtAmount / acc.limit) * 100)) : 0;
+                    const availablePct = acc.limit ? Math.min(100, Math.max(0, ((acc.limit - debtAmount) / acc.limit) * 100)) : 0;
                     const availableAmount = acc.limit + balance;
 
                     return (
@@ -334,17 +339,17 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                             <Text style={{
                               fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
-                            }}>Progreso de uso</Text>
+                            }}>Crédito disponible</Text>
                             <Text style={{
                               fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text,
                               fontVariant: ['tabular-nums'],
                             }}>
-                              {usedPct.toFixed(0)}% usado
+                              {availablePct.toFixed(0)}% disponible
                             </Text>
                           </View>
                           <ProgressBar
-                            pct={usedPct}
-                            color={acc.color || 'rose'}
+                            pct={availablePct}
+                            color={availablePct > 20 ? (acc.color || 'green') : 'rose'}
                             height={8}
                           />
                         </View>
