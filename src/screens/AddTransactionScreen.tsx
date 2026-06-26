@@ -71,6 +71,7 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [showDestPicker, setShowDestPicker] = useState(false);
   const [showCatSheet, setShowCatSheet] = useState(false);
+  const [msiMonths, setMsiMonths] = useState<number | null>(editingTx?.msiMonths || null);
 
   const shake = useRef(new Animated.Value(0)).current;
   const amountInputRef = useRef<any>(null);
@@ -118,6 +119,7 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
       destinationAccountId: type === 'TRANSFER' ? destAccountId : null,
       note: note || null,
       destinationGoalId: (type === 'TRANSFER' || type === 'INCOME') ? targetGoalId : null,
+      msiMonths: (type === 'EXPENSE' && acc?.type === 'CREDIT_CARD' && msiMonths) ? msiMonths : undefined,
     };
     dispatch({ type: editingId ? 'UPDATE_TX' : 'ADD_TX', tx });
 
@@ -337,6 +339,47 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
               textTransform: 'capitalize',
             }}>{dayLabel(date)}</Text>
           </FormRow>
+
+          {/* Meses Sin Intereses */}
+          {type === 'EXPENSE' && acc?.type === 'CREDIT_CARD' ? (
+            <View style={{ marginTop: 14 }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
+                marginBottom: 8,
+              }}>MESES SIN INTERESES</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {[null, 3, 6, 9, 12, 18, 24].map((m, i) => {
+                  const active = msiMonths === m;
+                  return (
+                    <Pressable
+                      key={i}
+                      onPress={() => setMsiMonths(m)}
+                      style={{
+                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                        borderWidth: active ? 1.5 : 1,
+                        borderColor: active ? t.indigo : t.border,
+                        backgroundColor: active ? softFor(t, 'indigo') : 'transparent',
+                        minWidth: 44, alignItems: 'center',
+                      }}
+                    >
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13,
+                        color: active ? t.indigo : t.text,
+                      }}>{m === null ? 'No' : `${m} MSI`}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {msiMonths && (
+                <Text style={{
+                  fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.indigo,
+                  marginTop: 8,
+                }}>
+                  Tu límite se reducirá por el total, pero pagarás {fmtMXN(amtNum / msiMonths)} al mes en tu saldo al corte.
+                </Text>
+              )}
+            </View>
+          ) : null}
 
           {/* Nota (Opcional) */}
           <Text style={{

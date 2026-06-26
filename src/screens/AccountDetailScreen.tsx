@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { labelType } from '../data/catalog';
 import { fmtMXN } from '../data/format';
-import { computeAccountBalance, getCardTypeForAccount } from '../data/selectors';
+import { calculateStatementBalance, computeAccountBalance, getCardTypeForAccount } from '../data/selectors';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -97,6 +97,11 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
 
   const balance = computeAccountBalance(acc, state.transactions);
   const isHidden = balanceHidden || hiddenCards.includes(getCardTypeForAccount(acc));
+  const autoStatementBalance = acc.type === 'CREDIT_CARD' ? calculateStatementBalance(acc, state.transactions) : 0;
+  
+  // Use the manual override if it exists and is greater than the auto calculation (or just use auto entirely)
+  // The plan said: "Reemplazar la dependencia de acc.statementBalance por el nuevo cálculo automático"
+  const finalStatementBalance = autoStatementBalance;
 
   return (
     <View style={{ flex: 1 }}>
@@ -194,17 +199,17 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                     <Text style={{
                       fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
-                    }}>Progreso de uso</Text>
+                    }}>Crédito disponible</Text>
                     <Text style={{
                       fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text,
                       fontVariant: ['tabular-nums'],
                     }}>
-                      {((Math.abs(balance) / acc.limit) * 100).toFixed(0)}% usado
+                      {(((acc.limit - Math.abs(balance)) / acc.limit) * 100).toFixed(0)}% disponible
                     </Text>
                   </View>
                   <ProgressBar
-                    pct={(Math.abs(balance) / acc.limit) * 100}
-                    color={acc.color || 'rose'}
+                    pct={((acc.limit - Math.abs(balance)) / acc.limit) * 100}
+                    color={((acc.limit - Math.abs(balance)) / acc.limit) * 100 > 20 ? (acc.color || 'green') : 'rose'}
                     height={8}
                   />
                 </View>
@@ -321,29 +326,12 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted, letterSpacing: 0.2 }}>
-                          SALDO AL CORTE REGISTRADO
+                          SALDO AL CORTE (PAGO PARA NO GENERAR INTERESES)
                         </Text>
-                        <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: acc.statementBalance ? t.indigo : t.textSubtle, marginTop: 4, fontVariant: ['tabular-nums'] }}>
-                          {acc.statementBalance ? fmtMXN(acc.statementBalance) : 'Sin registrar'}
+                        <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: finalStatementBalance > 0 ? t.indigo : t.green, marginTop: 4, fontVariant: ['tabular-nums'] }}>
+                          {finalStatementBalance > 0 ? fmtMXN(finalStatementBalance) : 'Totalmente pagado'}
                         </Text>
                       </View>
-                      <Pressable
-                        onPress={() => {
-                          setCutoffAmount(acc.statementBalance ? (acc.statementBalance / 100).toFixed(2) : '');
-                          setCutoffMinimumPayment(acc.statementMinimumPayment ? (acc.statementMinimumPayment / 100).toFixed(2) : '');
-                          setCutoffInterestRate(acc.interestRate ? String(acc.interestRate) : '');
-                          setShowCutoffModal(true);
-                        }}
-                        style={({ pressed }) => [{
-                          paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
-                          backgroundColor: softFor(t, 'indigo'),
-                          opacity: pressed ? 0.8 : 1,
-                        }]}
-                      >
-                        <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.indigo }}>
-                          {acc.statementBalance ? 'Ajustar' : 'Ingresar'}
-                        </Text>
-                      </Pressable>
                     </View>
                   </>
                 )}
@@ -619,10 +607,10 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>
-                  {acc.statementBalance ? 'Pago para no generar intereses (Saldo al Corte)' : 'Pago para no generar intereses'}
+                  {finalStatementBalance > 0 ? 'Pago para no generar intereses (Saldo al Corte)' : 'Pago para no generar intereses'}
                 </Text>
                 <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.green, marginTop: 2, fontVariant: ['tabular-nums'] }}>
-                  {fmtMXN(acc.statementBalance ? acc.statementBalance : Math.abs(balance))}
+                  {fmtMXN(finalStatementBalance > 0 ? finalStatementBalance : Math.abs(balance))}
                 </Text>
               </View>
             </Pressable>
@@ -647,10 +635,10 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>
-                  {acc.statementMinimumPayment ? 'Pago mínimo de tu estado' : 'Pago mínimo sugerido (5%)'}
+                  Pago mínimo sugerido (5%)
                 </Text>
                 <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.yellow, marginTop: 2, fontVariant: ['tabular-nums'] }}>
-                  {fmtMXN(acc.statementMinimumPayment ? acc.statementMinimumPayment : (acc.statementBalance ? acc.statementBalance : Math.abs(balance)) * 0.05)}
+                  {fmtMXN((finalStatementBalance > 0 ? finalStatementBalance : Math.abs(balance)) * 0.05)}
                 </Text>
               </View>
             </Pressable>
@@ -699,11 +687,11 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
 
             {/* Interest Warning Logic */}
             {(() => {
-              const debt = acc.statementBalance ? (acc.statementBalance / 100) : (Math.abs(balance) / 100);
+              const debt = finalStatementBalance > 0 ? (finalStatementBalance / 100) : (Math.abs(balance) / 100);
               let paidVal = 0;
               if (paymentType === 'total') paidVal = debt;
               else if (paymentType === 'minimum') {
-                paidVal = acc.statementMinimumPayment ? (acc.statementMinimumPayment / 100) : debt * 0.05;
+                paidVal = debt * 0.05;
               } else paidVal = parseFloat(customPaymentAmount) || 0;
 
               const remaining = Math.max(0, debt - paidVal);
@@ -777,11 +765,11 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
             {acc && (
               <Pressable
                 onPress={() => {
-                  const debt = acc.statementBalance ? (acc.statementBalance / 100) : (Math.abs(balance) / 100);
+                  const debt = finalStatementBalance > 0 ? (finalStatementBalance / 100) : (Math.abs(balance) / 100);
                   let paidVal = 0;
                   if (paymentType === 'total') paidVal = debt;
                   else if (paymentType === 'minimum') {
-                    paidVal = acc.statementMinimumPayment ? (acc.statementMinimumPayment / 100) : debt * 0.05;
+                    paidVal = debt * 0.05;
                   } else paidVal = parseFloat(customPaymentAmount) || 0;
 
                   if (paidVal <= 0 || !fromAccountId) return;

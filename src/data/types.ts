@@ -58,6 +58,7 @@ export interface Transaction {
   categoryId?: string | null;
   note?: string | null;
   destinationGoalId?: string | null;
+  msiMonths?: number; // For Meses Sin Intereses
 }
 
 export interface Budget {
