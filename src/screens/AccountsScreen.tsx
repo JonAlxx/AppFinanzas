@@ -12,7 +12,6 @@ import { useTheme } from '../theme/ThemeContext';
 import { AccountBadge } from '../components/Badges';
 import { BankCard } from '../components/BankCard';
 import { Card } from '../components/Card';
-import { ProgressBar } from '../components/ProgressBar';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SectionTitle } from '../components/SectionTitle';
 import { Icon, IconName } from '../icons/Icon';
@@ -355,7 +354,8 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
                         {isCC && acc.limit ? (() => {
                           const availableCredit = acc.limit + acc.balance;
                           const debt = acc.balance < 0 ? Math.abs(acc.balance) : 0;
-                          const pct = (debt / acc.limit) * 100;
+                          const usedPct = Math.min(100, Math.max(0, (debt / acc.limit) * 100));
+                          const availPct = 100 - usedPct;
                           return (
                             <View style={{ marginTop: 8, paddingHorizontal: 4 }}>
                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -367,7 +367,23 @@ export function AccountsScreen({ initialFilter = 'all' }: { initialFilter?: Acco
                                   fontVariant: ['tabular-nums'],
                                 }}>{secIsHidden ? '•••• de ••••' : `${fmtMXN(availableCredit)} de ${fmtMXN(acc.limit)}`}</Text>
                               </View>
-                              <ProgressBar pct={pct} color={acc.color} height={5} />
+                              <View style={{
+                                width: '100%', height: 5, borderRadius: 5,
+                                backgroundColor: t.border,
+                                overflow: 'hidden',
+                                flexDirection: 'row',
+                              }}>
+                                <View style={{
+                                  width: `${availPct}%`,
+                                  height: '100%',
+                                  backgroundColor: t.green,
+                                }} />
+                                <View style={{
+                                  width: `${usedPct}%`,
+                                  height: '100%',
+                                  backgroundColor: t.rose,
+                                }} />
+                              </View>
                             </View>
                           );
                         })() : null}
