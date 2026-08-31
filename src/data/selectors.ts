@@ -46,60 +46,46 @@ export function computeAccountBalance(account: Account, txs: Transaction[]): num
 }
 
 export function calculateStatementBalance(account: Account, txs: Transaction[]): number {
-  if (account.type !== 'CREDIT_CARD' || !account.statementDay) return 0;
-  
-  const now = new Date();
-  const sd = account.statementDay;
-  
-  let cutoffDate = new Date(now.getFullYear(), now.getMonth(), sd);
-  // Set to end of the day for cutoff to include all transactions on that day
-  cutoffDate.setHours(23, 59, 59, 999);
-  
-  if (cutoffDate.getTime() > now.getTime()) {
-    cutoffDate = new Date(now.getFullYear(), now.getMonth() - 1, sd);
-    cutoffDate.setHours(23, 59, 59, 999);
-  }
-  
-  let totalExpensesToCutoff = Math.abs(account.initial || 0);
-  let totalPaymentsToNow = 0;
-  
+  if (account.type !== 'CREDIT_CARD') return 0;
+  const bal = computeAccountBalance(account, txs);
+  return bal < 0 ? Math.abs(bal) : 0;
+}
+
+export function calculateCurrentCycleExpenses(account: Account, txs: Transaction[]): number {
+  if (account.type !== 'CREDIT_CARD') return 0;
+
+  const bal = computeAccountBalance(account, txs);
+  if (bal >= 0) return 0; // Debt is $0 or positive balance
+
+  const cardDebt = Math.abs(bal);
+
+  // Sum total remaining installments of all active MSI/MCI purchases on this account
+  let totalRemainingInstallments = 0;
   for (const t of txs) {
-    const isOut = (t.type === 'EXPENSE' && t.accountId === account.id) || (t.type === 'TRANSFER' && t.accountId === account.id);
-    const isIn = (t.type === 'INCOME' && t.accountId === account.id) || (t.type === 'TRANSFER' && t.destinationAccountId === account.id);
-    
-    if (isOut && t.date <= cutoffDate.getTime()) {
-       if (t.msiMonths && t.msiMonths > 0) {
-          let cutoffsPassed = 0;
-          let tempDate = new Date(t.date);
-          
-          let firstCutoff = new Date(tempDate.getFullYear(), tempDate.getMonth(), sd);
-          firstCutoff.setHours(23, 59, 59, 999);
-          if (firstCutoff.getTime() < tempDate.getTime()) {
-             firstCutoff = new Date(tempDate.getFullYear(), tempDate.getMonth() + 1, sd);
-             firstCutoff.setHours(23, 59, 59, 999);
+    if (t.accountId === account.id && t.type === 'EXPENSE' && !t.isEarlySettled) {
+      const totalMonths = t.msiMonths || t.mciMonths;
+      if (totalMonths && totalMonths > 0) {
+        const monthlyCents = Math.round(t.amount / totalMonths);
+        let paymentsCount = 0;
+        for (const p of txs) {
+          if (p.date >= t.date) {
+            if ((p.type === 'INCOME' && p.accountId === account.id && p.categoryId === 'cat-debt') ||
+                (p.type === 'TRANSFER' && p.destinationAccountId === account.id)) {
+              paymentsCount++;
+            }
           }
-          
-          let currentCutoff = new Date(firstCutoff.getTime());
-          while (currentCutoff.getTime() <= cutoffDate.getTime()) {
-             cutoffsPassed++;
-             currentCutoff = new Date(currentCutoff.getFullYear(), currentCutoff.getMonth() + 1, sd);
-             currentCutoff.setHours(23, 59, 59, 999);
-          }
-          
-          let monthsToCharge = Math.min(cutoffsPassed, t.msiMonths);
-          totalExpensesToCutoff += (t.amount / t.msiMonths) * monthsToCharge;
-       } else {
-          totalExpensesToCutoff += t.amount;
-       }
-    }
-    
-    if (isIn) {
-        totalPaymentsToNow += t.amount;
+        }
+        const elapsed = Math.min(totalMonths, paymentsCount);
+        if (elapsed < totalMonths) {
+          const paid = Math.min(t.amount, monthlyCents * elapsed);
+          totalRemainingInstallments += Math.max(0, t.amount - paid);
+        }
+      }
     }
   }
-  
-  const remaining = totalExpensesToCutoff - totalPaymentsToNow;
-  return Math.max(0, remaining);
+
+  // Single purchases remaining on the card = cardDebt - totalRemainingInstallments
+  return Math.max(0, cardDebt - totalRemainingInstallments);
 }
 
 export interface Totals { total: number; income: number; expense: number }

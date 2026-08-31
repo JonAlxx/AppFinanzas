@@ -3,7 +3,8 @@ import { Image, Pressable, ScrollView, Text, TextInput, View, KeyboardAvoidingVi
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { BRANDS } from '../data/catalog';
-import { Account, AccountType, NetworkType } from '../data/types';
+import { calculateStatementBalance } from '../data/selectors';
+import { Account, AccountType, NetworkType, Recurring } from '../data/types';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -59,7 +60,6 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
   const [network, setNetwork] = useState<NetworkType | null>(editing?.network || null);
   const [statementDay, setStatementDay] = useState(editing?.statementDay ? String(editing.statementDay) : '');
   const [paymentDay, setPaymentDay] = useState(editing?.paymentDay ? String(editing.paymentDay) : '');
-  const [interestRate, setInterestRate] = useState(editing?.interestRate ? String(editing.interestRate) : '');
   const [customBrandName, setCustomBrandName] = useState(editing?.customBrandName || '');
   const [customBrandColor, setCustomBrandColor] = useState(() => {
     if (editing?.customBrandColor) {
@@ -118,6 +118,41 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
     );
   }
 
+  function handleSelectBrand(newBrand: string | null) {
+    setBrand(newBrand);
+    if (newBrand === 'americanexpress') {
+      setNetwork('amex');
+    } else if (newBrand !== 'vexi' && newBrand !== null && !newBrand.startsWith('brand-custom-') && newBrand !== 'custom') {
+      if (network === 'amex') {
+        setNetwork(null);
+      }
+    }
+  }
+
+  const availableNetworks = React.useMemo(() => {
+    if (brand === 'americanexpress') {
+      return [{ id: 'amex', label: 'Amex' }];
+    }
+    if (brand === 'vexi') {
+      return [
+        { id: 'visa', label: 'Visa' },
+        { id: 'mastercard', label: 'Mastercard' },
+        { id: 'amex', label: 'Amex' },
+      ];
+    }
+    if (brand !== null && !brand.startsWith('brand-custom-') && brand !== 'custom') {
+      return [
+        { id: 'visa', label: 'Visa' },
+        { id: 'mastercard', label: 'Mastercard' },
+      ];
+    }
+    return [
+      { id: 'visa', label: 'Visa' },
+      { id: 'mastercard', label: 'Mastercard' },
+      { id: 'amex', label: 'Amex' },
+    ];
+  }, [brand]);
+
   const accColor = colorFor(t, color);
   const balanceNum = parseFloat(balance) || 0;
   const isCardLike = type === 'DEBIT_CARD' || type === 'CREDIT_CARD' || type === 'DIGITAL_WALLET';
@@ -157,10 +192,34 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
       if (limitCents !== undefined) newAcc.limit = limitCents;
       if (statementDay) newAcc.statementDay = parseInt(statementDay);
       if (paymentDay) newAcc.paymentDay = parseInt(paymentDay);
-      if (interestRate) newAcc.interestRate = parseFloat(interestRate);
     }
 
     dispatch({ type: editing ? 'UPDATE_ACC' : 'ADD_ACC', acc: newAcc });
+
+    if (isCC && newAcc.paymentDay) {
+      const statementBal = calculateStatementBalance(newAcc, state.transactions);
+      const existingRec = state.recurring.find(r => r.autoCreditCardId === newAcc.id);
+
+      const recRule: Recurring = {
+        id: existingRec?.id || ('rec-cc-' + newAcc.id),
+        type: 'EXPENSE',
+        amount: statementBal,
+        accountId: newAcc.id,
+        categoryId: 'cat-debt',
+        note: `Pago de Tarjeta ${newAcc.name}`,
+        frequency: 'monthly',
+        dayOfMonth: newAcc.paymentDay,
+        startDate: Date.now(),
+        active: true,
+        autoCreditCardId: newAcc.id,
+      };
+
+      dispatch({
+        type: existingRec ? 'UPDATE_RECURRING' : 'ADD_RECURRING',
+        rule: recRule,
+      });
+    }
+
     back();
   }
 
@@ -189,7 +248,6 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
     previewAcc.limit = Math.round(limitNum * 100);
     if (statementDay) previewAcc.statementDay = parseInt(statementDay);
     if (paymentDay) previewAcc.paymentDay = parseInt(paymentDay);
-    if (interestRate) previewAcc.interestRate = parseFloat(interestRate);
   }
 
   return (
@@ -276,7 +334,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
           >
             {/* "Ninguno" chip */}
             <Pressable
-              onPress={() => setBrand(null)}
+              onPress={() => handleSelectBrand(null)}
               style={({ pressed }) => [{
                 height: 56, paddingHorizontal: 16, borderRadius: 12,
                 backgroundColor: t.surfaceAlt,
@@ -298,7 +356,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
               return (
                 <Pressable
                   key={id}
-                  onPress={() => setBrand(id)}
+                  onPress={() => handleSelectBrand(id)}
                   style={({ pressed }) => [{
                     height: 56, paddingHorizontal: 14, borderRadius: 12,
                     backgroundColor: b.bg,
@@ -351,7 +409,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                 <Pressable
                   key={cb.id}
                   onPress={() => {
-                    setBrand(cb.id);
+                    handleSelectBrand(cb.id);
                     setCustomBrandName(cb.name);
                     const foundColor = COLORS.find(c => colorFor(t, c) === cb.color) || 'indigo';
                     setCustomBrandColor(foundColor);
@@ -441,11 +499,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                 marginTop: 18, marginBottom: 8,
               }}>RED (OPCIONAL)</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                {[
-                  { id: 'visa', label: 'Visa' },
-                  { id: 'mastercard', label: 'Mastercard' },
-                  { id: 'amex', label: 'Amex' },
-                ].map(n => {
+                {availableNetworks.map(n => {
                   const active = network === n.id;
                   return (
                     <Pressable
@@ -528,7 +582,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                   <Text style={{
                     fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
                     marginBottom: 8,
-                  }}>DÍA DE CORTE</Text>
+                  }}>DÍA DE CORTE (1-31) *</Text>
                   <TextInput
                     value={statementDay}
                     onChangeText={(v) => {
@@ -556,7 +610,7 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                   <Text style={{
                     fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
                     marginBottom: 8,
-                  }}>DÍA DE PAGO</Text>
+                  }}>DÍA DE PAGO (1-31) *</Text>
                   <TextInput
                     value={paymentDay}
                     onChangeText={(v) => {
@@ -581,31 +635,6 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
                 </View>
               </View>
 
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
-                marginTop: 18, marginBottom: 8,
-              }}>TASA DE INTERÉS ANUAL (CAT %)</Text>
-              <TextInput
-                value={interestRate}
-                onChangeText={(v) => {
-                  const clean = v.replace(/[^0-9.]/g, '');
-                  const parts = clean.split('.');
-                  const normalized = parts.length > 2
-                    ? parts[0] + '.' + parts.slice(1).join('')
-                    : clean;
-                  setInterestRate(normalized.slice(0, 5));
-                }}
-                placeholder="Ej. 55.0"
-                placeholderTextColor={t.textMuted}
-                keyboardType="decimal-pad"
-                style={{
-                  paddingVertical: 12,
-                  borderBottomWidth: 1, borderBottomColor: t.border,
-                  color: t.text, fontSize: 15,
-                  fontFamily: 'PlusJakartaSans_600SemiBold',
-                  fontVariant: ['tabular-nums'],
-                }}
-              />
 
               {limit ? (
                 <Text style={{
@@ -678,39 +707,44 @@ export function AddAccountScreen({ editingId }: AddAccountScreenProps) {
           ) : null}
         </Card>
 
-        <Pressable
-          onPress={save}
-          disabled={!name}
-          style={({ pressed }) => [{
-            marginTop: 18, borderRadius: 16, overflow: 'hidden',
-            opacity: pressed ? 0.9 : 1,
-            ...(name && {
-              shadowColor: t.indigo, shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.4, shadowRadius: 20, elevation: 8,
-            }),
-          }]}
-        >
-          {name ? (
-            <LinearGradient
-              colors={[t.indigo, t.violet]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={{ paddingVertical: 15, alignItems: 'center' }}
+        {(() => {
+          const canSave = !!name && (type !== 'CREDIT_CARD' || (!!statementDay && !!paymentDay));
+          return (
+            <Pressable
+              onPress={save}
+              disabled={!canSave}
+              style={({ pressed }) => [{
+                marginTop: 18, borderRadius: 16, overflow: 'hidden',
+                opacity: pressed ? 0.9 : 1,
+                ...(canSave && {
+                  shadowColor: t.indigo, shadowOffset: { width: 0, height: 8 },
+                  shadowOpacity: 0.4, shadowRadius: 20, elevation: 8,
+                }),
+              }]}
             >
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: '#fff',
-              }}>{editing ? 'Guardar cambios' : 'Crear cuenta'}</Text>
-            </LinearGradient>
-          ) : (
-            <View style={{
-              paddingVertical: 15, alignItems: 'center',
-              backgroundColor: t.border,
-            }}>
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: '#fff',
-              }}>{editing ? 'Guardar cambios' : 'Crear cuenta'}</Text>
-            </View>
-          )}
-        </Pressable>
+              {canSave ? (
+                <LinearGradient
+                  colors={[t.indigo, t.violet]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={{ paddingVertical: 15, alignItems: 'center' }}
+                >
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: '#fff',
+                  }}>{editing ? 'Guardar cambios' : 'Crear cuenta'}</Text>
+                </LinearGradient>
+              ) : (
+                <View style={{
+                  paddingVertical: 15, alignItems: 'center',
+                  backgroundColor: t.border,
+                }}>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.textMuted,
+                  }}>{editing ? 'Guardar cambios' : 'Crear cuenta'}</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })()}
       </ScrollView>
       </KeyboardAvoidingView>
 

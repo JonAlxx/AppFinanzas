@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { catById, subscriptionBrandFor } from '../data/catalog';
 import { fmtMXN } from '../data/format';
-import { nextDueAfter } from '../data/selectors';
+import { calculateStatementBalance, nextDueAfter } from '../data/selectors';
 import { Recurring, RecurringFrequency } from '../data/types';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -48,9 +48,18 @@ function RecurringRow({ rule }: { rule: Recurring }) {
   const next = nextDueAfter(rule, Date.now());
   const isIncome = rule.type === 'INCOME';
 
+  const linkedCcAcc = rule.autoCreditCardId ? state.accounts.find(a => a.id === rule.autoCreditCardId) : undefined;
+  const displayAmount = linkedCcAcc ? calculateStatementBalance(linkedCcAcc, state.transactions) : rule.amount;
+
   return (
     <Pressable
-      onPress={() => navigate({ screen: 'add-recurring', id: rule.id })}
+      onPress={() => {
+        if (linkedCcAcc) {
+          navigate({ screen: 'account-detail', id: linkedCcAcc.id });
+        } else {
+          navigate({ screen: 'add-recurring', id: rule.id });
+        }
+      }}
       style={({ pressed }) => [{
         flexDirection: 'row', alignItems: 'center', gap: 12,
         paddingHorizontal: 14, paddingVertical: 12,
@@ -63,9 +72,21 @@ function RecurringRow({ rule }: { rule: Recurring }) {
         <CategoryBadge cat={cat} />
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={1} style={{
-          fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
-        }}>{rule.note || brand?.name || cat?.name || (isIncome ? 'Ingreso fijo' : 'Recurrente')}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text numberOfLines={1} style={{
+            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text, flexShrink: 1,
+          }}>{rule.note || brand?.name || cat?.name || (isIncome ? 'Ingreso fijo' : 'Recurrente')}</Text>
+          {linkedCcAcc ? (
+            <View style={{
+              paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+              backgroundColor: softFor(t, 'indigo'),
+            }}>
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.indigo,
+              }}>⚡ Dinámico</Text>
+            </View>
+          ) : null}
+        </View>
         <Text numberOfLines={1} style={{
           fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
           marginTop: 2,
@@ -74,29 +95,34 @@ function RecurringRow({ rule }: { rule: Recurring }) {
       <View style={{ alignItems: 'flex-end', gap: 6 }}>
         <Text style={{
           fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14,
-          color: isIncome ? t.green : t.text,
+          color: isIncome ? t.green : (linkedCcAcc && displayAmount === 0 ? t.green : t.text),
           fontVariant: ['tabular-nums'],
-        }}>{isIncome ? '+' : '-'}{fmtMXN(rule.amount).replace('-', '')}</Text>
-        <Pressable
-          onPress={(e) => {
-            // stop propagation by not triggering parent; RN doesn't auto-bubble Pressable so just dispatch
-            dispatch({ type: 'TOGGLE_RECURRING_ACTIVE', id: rule.id });
-          }}
-          hitSlop={6}
-          style={{
-            width: 36, height: 20, borderRadius: 10,
-            backgroundColor: rule.active ? t.green : t.border,
-            justifyContent: 'center',
-          }}
-        >
-          <View style={{
-            width: 16, height: 16, borderRadius: 8,
-            backgroundColor: '#fff',
-            position: 'absolute', top: 2, left: rule.active ? 18 : 2,
-            shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.2, shadowRadius: 2, elevation: 1,
-          }} />
-        </Pressable>
+        }}>{isIncome ? '+' : '-'}{fmtMXN(displayAmount).replace('-', '')}</Text>
+        {!linkedCcAcc ? (
+          <Pressable
+            onPress={(e) => {
+              dispatch({ type: 'TOGGLE_RECURRING_ACTIVE', id: rule.id });
+            }}
+            hitSlop={6}
+            style={{
+              width: 36, height: 20, borderRadius: 10,
+              backgroundColor: rule.active ? t.green : t.border,
+              justifyContent: 'center',
+            }}
+          >
+            <View style={{
+              width: 16, height: 16, borderRadius: 8,
+              backgroundColor: '#fff',
+              position: 'absolute', top: 2, left: rule.active ? 18 : 2,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.2, shadowRadius: 2, elevation: 1,
+            }} />
+          </Pressable>
+        ) : (
+          <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.indigo }}>
+            TDC ➔
+          </Text>
+        )}
       </View>
     </Pressable>
   );
@@ -120,9 +146,18 @@ export function RecurringScreen() {
       else if (r.frequency === 'biweekly') multiplier = 2;
       else if (r.frequency === 'weekly') multiplier = 4;
       else if (r.frequency === 'yearly') multiplier = 1 / 12;
-      return s + r.amount * multiplier;
+
+      let ruleAmt = r.amount;
+      if (r.autoCreditCardId) {
+        const cc = state.accounts.find(a => a.id === r.autoCreditCardId);
+        if (cc) {
+          ruleAmt = calculateStatementBalance(cc, state.transactions);
+        }
+      }
+
+      return s + ruleAmt * multiplier;
     }, 0);
-  }, [subs]);
+  }, [subs, state.accounts, state.transactions]);
 
   const monthlyIn = useMemo(() => {
     return income.filter(r => r.active).reduce((s, r) => {

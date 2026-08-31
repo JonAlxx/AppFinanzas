@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useReducer, useRef } from 'react';
-import { AppNotification, AppState } from '../data/types';
-import { materializeRecurring, upcomingPayments } from '../data/selectors';
+import { AppNotification, AppState, Recurring } from '../data/types';
+import { calculateStatementBalance, materializeRecurring, upcomingPayments } from '../data/selectors';
 import { Action, initialState, reducer } from './reducer';
 import { saveState } from './persistence';
 import { scheduleRecurringNotifications, scheduleCreditCardNotifications } from '../utils/notifications';
@@ -37,6 +37,31 @@ export function AppStateProvider({
     : initialState(false);
   const [state, dispatch] = useReducer(reducer, seed);
   const materializedRef = useRef(false);
+
+  // Auto-sync linked recurring rules for credit card accounts
+  useEffect(() => {
+    const creditCards = state.accounts.filter(a => a.type === 'CREDIT_CARD' && a.paymentDay);
+    for (const cc of creditCards) {
+      const exists = state.recurring.some(r => r.autoCreditCardId === cc.id);
+      if (!exists) {
+        const statementBal = calculateStatementBalance(cc, state.transactions);
+        const recRule: Recurring = {
+          id: 'rec-cc-' + cc.id,
+          type: 'EXPENSE',
+          amount: statementBal,
+          accountId: cc.id,
+          categoryId: 'cat-debt',
+          note: `Pago de Tarjeta ${cc.name}`,
+          frequency: 'monthly',
+          dayOfMonth: cc.paymentDay,
+          startDate: Date.now(),
+          active: true,
+          autoCreditCardId: cc.id,
+        };
+        dispatch({ type: 'ADD_RECURRING', rule: recRule });
+      }
+    }
+  }, [state.accounts, state.recurring, state.transactions]);
 
   // Auto-materialization of recurring rules is disabled because the user requested manual confirmation.
   /*

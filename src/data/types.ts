@@ -59,6 +59,12 @@ export interface Transaction {
   note?: string | null;
   destinationGoalId?: string | null;
   msiMonths?: number; // For Meses Sin Intereses
+  mciMonths?: number; // For Meses Con Intereses
+  mciInterestRate?: number; // For Meses Con Intereses (%)
+  mciBaseAmount?: number; // Base amount before interest (in cents)
+  isEarlySettled?: boolean; // True if the installment purchase was settled early / paid off completely
+  settledByTxId?: string; // Optional payment transaction ID that triggered early settlement
+  transferPairId?: string; // Optional linked pair ID for paired payment transactions
 }
 
 export interface Budget {
@@ -124,6 +130,7 @@ export interface Recurring {
   subscriptionBrand?: string | null; // optional id from SUBSCRIPTION_BRANDS
   biweeklyDay1?: number; // for custom biweekly: 1-31
   biweeklyDay2?: number; // for custom biweekly: 1-31
+  autoCreditCardId?: string; // linked credit card account id for auto statement payments
 }
 
 export interface UserProfile {
