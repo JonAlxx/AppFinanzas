@@ -112,22 +112,56 @@ export function reducer(state: AppState, action: Action): AppState {
     }
     case 'DELETE_TX': {
       const oldTx = state.transactions.find(t => t.id === action.id);
-      let newGoals = state.goals;
-      if (oldTx && (oldTx.type === 'TRANSFER' || oldTx.type === 'INCOME') && oldTx.destinationGoalId) {
-        newGoals = state.goals.map(g =>
-          g.id === oldTx.destinationGoalId
-            ? { ...g, current: Math.max(0, g.current - oldTx.amount) }
-            : g
-        );
+      if (!oldTx) return state;
+
+      const idsToDelete = new Set<string>([action.id]);
+      if (oldTx.transferPairId) {
+        for (const t of state.transactions) {
+          if (t.transferPairId === oldTx.transferPairId) {
+            idsToDelete.add(t.id);
+          }
+        }
+      } else {
+        // Fallback for legacy paired txs created with t-exp- / t-inc- timestamp matching
+        if (oldTx.id.startsWith('t-exp-')) {
+          const matchingIncId = oldTx.id.replace('t-exp-', 't-inc-');
+          if (state.transactions.some(t => t.id === matchingIncId)) idsToDelete.add(matchingIncId);
+        } else if (oldTx.id.startsWith('t-inc-')) {
+          const matchingExpId = oldTx.id.replace('t-inc-', 't-exp-');
+          if (state.transactions.some(t => t.id === matchingExpId)) idsToDelete.add(matchingExpId);
+        }
       }
+
+      let newGoals = state.goals;
+      for (const tId of idsToDelete) {
+        const targetTx = state.transactions.find(t => t.id === tId);
+        if (targetTx && (targetTx.type === 'TRANSFER' || targetTx.type === 'INCOME') && targetTx.destinationGoalId) {
+          newGoals = newGoals.map(g =>
+            g.id === targetTx.destinationGoalId
+              ? { ...g, current: Math.max(0, g.current - targetTx.amount) }
+              : g
+          );
+        }
+      }
+
+      // Revert early settlement if deleted transaction was the trigger
+      const updatedTxs = state.transactions
+        .filter(t => !idsToDelete.has(t.id))
+        .map(t => {
+          if (t.settledByTxId && idsToDelete.has(t.settledByTxId)) {
+            const { isEarlySettled, settledByTxId, ...rest } = t;
+            return rest as Transaction;
+          }
+          return t;
+        });
 
       // Rollback recurring payment state if the deleted transaction was materialized from a rule
       let updatedRecurring = state.recurring;
       if (action.id.startsWith('tx-rec-')) {
         const rule = state.recurring.find(r => action.id.startsWith(`tx-rec-${r.id}-`));
         if (rule) {
-          const remainingTxs = state.transactions.filter(
-            t => t.id !== action.id && t.id.startsWith(`tx-rec-${rule.id}-`)
+          const remainingTxs = updatedTxs.filter(
+            t => t.id.startsWith(`tx-rec-${rule.id}-`)
           );
           const maxDate = remainingTxs.length > 0 ? Math.max(...remainingTxs.map(t => t.date)) : null;
           updatedRecurring = state.recurring.map(r =>
@@ -140,7 +174,7 @@ export function reducer(state: AppState, action: Action): AppState {
 
       return {
         ...state,
-        transactions: state.transactions.filter(t => t.id !== action.id),
+        transactions: updatedTxs,
         goals: newGoals,
         recurring: updatedRecurring,
       };

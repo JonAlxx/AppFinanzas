@@ -72,6 +72,14 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
   const [showDestPicker, setShowDestPicker] = useState(false);
   const [showCatSheet, setShowCatSheet] = useState(false);
   const [msiMonths, setMsiMonths] = useState<number | null>(editingTx?.msiMonths || null);
+  const [mciMonths, setMciMonths] = useState<number | null>(editingTx?.mciMonths || null);
+  const [mciTotalInput, setMciTotalInput] = useState<string>(
+    editingTx?.mciMonths ? (editingTx.amount / 100).toFixed(2) : ''
+  );
+
+  const acc = state.accounts.find(a => a.id === accountId);
+  const isMsiActive = type === 'EXPENSE' && acc?.type === 'CREDIT_CARD' && msiMonths !== null && msiMonths > 0;
+  const isMciActive = type === 'EXPENSE' && acc?.type === 'CREDIT_CARD' && mciMonths !== null && mciMonths > 0;
 
   const shake = useRef(new Animated.Value(0)).current;
   const amountInputRef = useRef<any>(null);
@@ -88,10 +96,15 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
     [state.customCategories, type]
   );
   const cat = categoryId ? catById(categoryId, state.customCategories) : undefined;
-  const acc = state.accounts.find(a => a.id === accountId);
   const dest = state.accounts.find(a => a.id === destAccountId);
   const amtNum = parseFloat(amount) || 0;
   const amtCents = Math.round(amtNum * 100);
+
+  const mciTotalNum = parseFloat(mciTotalInput) || 0;
+  const mciTotalCents = Math.round(mciTotalNum * 100);
+
+  // Effective transaction amount in cents (uses total con interés when MCI is active and custom input is entered)
+  const effectiveTxCents = isMciActive && mciTotalCents > 0 ? mciTotalCents : amtCents;
 
   const availableFunds = useMemo(() => {
     if (!acc) return 0;
@@ -102,7 +115,7 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
     return bal;
   }, [acc, state.transactions]);
 
-  const hasSufficientFunds = type === 'INCOME' || availableFunds >= amtCents;
+  const hasSufficientFunds = type === 'INCOME' || availableFunds >= effectiveTxCents;
 
   const canSave = amtNum > 0 && !!accountId && hasSufficientFunds && (type === 'TRANSFER' ? destAccountId && (targetGoalId ? true : destAccountId !== accountId) : !!categoryId);
 
@@ -152,17 +165,28 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
       };
       dispatch({ type: 'ADD_TX', tx: incomeTx });
     } else {
+      const isMci = type === 'EXPENSE' && acc?.type === 'CREDIT_CARD' && isMciActive;
+      const isMsi = type === 'EXPENSE' && acc?.type === 'CREDIT_CARD' && isMsiActive;
+      const finalAmountCents = isMci ? (mciTotalCents > 0 ? mciTotalCents : amtCents) : amtCents;
+      const mciBaseCents = isMci ? amtCents : undefined;
+      const mciRate = (isMci && mciTotalCents > amtCents && amtCents > 0)
+        ? Math.round(((mciTotalCents - amtCents) / amtCents) * 100 * 10) / 10
+        : undefined;
+
       const tx = {
         id: editingId || ('t' + Date.now()),
         type,
-        amount: Math.round(amtNum * 100),
+        amount: finalAmountCents,
         date,
         accountId,
         categoryId: type === 'TRANSFER' ? null : categoryId,
         destinationAccountId: type === 'TRANSFER' ? destAccountId : null,
         note: note || null,
         destinationGoalId: (type === 'TRANSFER' || type === 'INCOME') ? targetGoalId : null,
-        msiMonths: (type === 'EXPENSE' && acc?.type === 'CREDIT_CARD' && msiMonths) ? msiMonths : undefined,
+        msiMonths: isMsi && msiMonths ? msiMonths : undefined,
+        mciMonths: isMci && mciMonths ? mciMonths : undefined,
+        mciBaseAmount: isMci ? mciBaseCents : undefined,
+        mciInterestRate: isMci ? mciRate : undefined,
       };
       dispatch({ type: editingId ? 'UPDATE_TX' : 'ADD_TX', tx });
     }
@@ -425,42 +449,280 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
 
           {/* Meses Sin Intereses */}
           {type === 'EXPENSE' && acc?.type === 'CREDIT_CARD' ? (
-            <View style={{ marginTop: 14 }}>
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
-                marginBottom: 8,
-              }}>MESES SIN INTERESES</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {[null, 3, 6, 9, 12, 18, 24].map((m, i) => {
-                  const active = msiMonths === m;
-                  return (
-                    <Pressable
-                      key={i}
-                      onPress={() => setMsiMonths(m)}
-                      style={{
-                        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-                        borderWidth: active ? 1.5 : 1,
-                        borderColor: active ? t.indigo : t.border,
-                        backgroundColor: active ? softFor(t, 'indigo') : 'transparent',
-                        minWidth: 44, alignItems: 'center',
-                      }}
-                    >
-                      <Text style={{
-                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13,
-                        color: active ? t.indigo : t.text,
-                      }}>{m === null ? 'No' : `${m} MSI`}</Text>
-                    </Pressable>
-                  );
-                })}
+            <View style={{
+              marginTop: 14,
+              padding: 14,
+              borderRadius: 16,
+              backgroundColor: t.surfaceAlt,
+              borderWidth: 1,
+              borderColor: isMsiActive ? t.indigo + '40' : t.border,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 12 }}>
+                  <View style={{
+                    width: 32, height: 32, borderRadius: 10,
+                    backgroundColor: isMsiActive ? softFor(t, 'indigo') : t.border + '60',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon name="calendar" size={16} color={isMsiActive ? colorFor(t, 'indigo') : t.textMuted} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13.5, color: t.text,
+                    }}>
+                      ¿Meses Sin Intereses (MSI)?
+                    </Text>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted,
+                      marginTop: 2,
+                    }}>
+                      {isMsiActive ? `Diferido a ${msiMonths} meses sin intereses` : 'Difiere el pago de esta compra'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Switch Deslizable */}
+                <Pressable
+                  onPress={() => {
+                    const nextActive = !isMsiActive;
+                    if (nextActive) {
+                      setMciMonths(null); // Desactivar MCI si se activa MSI
+                      setMsiMonths(msiMonths || 3);
+                    } else {
+                      setMsiMonths(null);
+                    }
+                  }}
+                  style={{
+                    width: 46, height: 26, borderRadius: 13,
+                    backgroundColor: isMsiActive ? t.indigo : t.border,
+                    position: 'relative',
+                  }}
+                >
+                  <View style={{
+                    position: 'absolute', top: 3, left: isMsiActive ? 23 : 3,
+                    width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff',
+                    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.2, shadowRadius: 3, elevation: 2,
+                  }} />
+                </Pressable>
               </View>
-              {msiMonths && (
-                <Text style={{
-                  fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.indigo,
-                  marginTop: 8,
-                }}>
-                  Tu límite se reducirá por el total, pero pagarás {fmtMXN(amtNum / msiMonths)} al mes en tu saldo al corte.
-                </Text>
-              )}
+
+              {/* Opciones de Meses (desplegables si el switch está activado) */}
+              {isMsiActive ? (
+                <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: t.border }}>
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+                    marginBottom: 8, letterSpacing: 0.3,
+                  }}>SELECCIONA LOS MESES</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {[3, 6, 9, 12, 18, 24].map((m) => {
+                      const active = msiMonths === m;
+                      return (
+                        <Pressable
+                          key={m}
+                          onPress={() => setMsiMonths(m)}
+                          style={{
+                            paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                            borderWidth: active ? 1.5 : 1,
+                            borderColor: active ? t.indigo : t.border,
+                            backgroundColor: active ? t.indigo : t.surface,
+                            minWidth: 48, alignItems: 'center',
+                          }}
+                        >
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13,
+                            color: active ? '#fff' : t.text,
+                          }}>{m} MSI</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {msiMonths ? (
+                    <View style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 8,
+                      backgroundColor: softFor(t, 'indigo'),
+                      padding: 10, borderRadius: 10, marginTop: 12,
+                    }}>
+                      <Icon name="calendar" size={14} color={t.indigo} />
+                      <Text style={{
+                        fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11.5, color: t.indigo,
+                        flex: 1, lineHeight: 15,
+                      }}>
+                        Pagarás {fmtMXN(amtCents > 0 ? Math.round(amtCents / msiMonths) : 0)}/mes durante {msiMonths} meses en tu saldo al corte.
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* Meses Con Intereses (MCI) */}
+          {type === 'EXPENSE' && acc?.type === 'CREDIT_CARD' ? (
+            <View style={{
+              marginTop: 12,
+              padding: 14,
+              borderRadius: 16,
+              backgroundColor: t.surfaceAlt,
+              borderWidth: 1,
+              borderColor: isMciActive ? t.orange + '50' : t.border,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 12 }}>
+                  <View style={{
+                    width: 32, height: 32, borderRadius: 10,
+                    backgroundColor: isMciActive ? softFor(t, 'orange') : t.border + '60',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon name="calculator" size={16} color={isMciActive ? colorFor(t, 'orange') : t.textMuted} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13.5, color: t.text,
+                    }}>
+                      ¿Meses Con Intereses (MCI)?
+                    </Text>
+                    <Text style={{
+                      fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted,
+                      marginTop: 2,
+                    }}>
+                      {isMciActive ? `Diferido a ${mciMonths} meses con intereses` : 'Difiere con costo de financiamiento'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Switch Deslizable */}
+                <Pressable
+                  onPress={() => {
+                    const nextActive = !isMciActive;
+                    if (nextActive) {
+                      setMsiMonths(null); // Desactivar MSI si se activa MCI
+                      setMciMonths(mciMonths || 3);
+                    } else {
+                      setMciMonths(null);
+                    }
+                  }}
+                  style={{
+                    width: 46, height: 26, borderRadius: 13,
+                    backgroundColor: isMciActive ? t.orange : t.border,
+                    position: 'relative',
+                  }}
+                >
+                  <View style={{
+                    position: 'absolute', top: 3, left: isMciActive ? 23 : 3,
+                    width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff',
+                    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.2, shadowRadius: 3, elevation: 2,
+                  }} />
+                </Pressable>
+              </View>
+
+              {/* Opciones de Meses e Ingreso Manual de Total con Intereses */}
+              {isMciActive ? (
+                <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: t.border }}>
+                  {/* Selector de Plazo */}
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+                    marginBottom: 8, letterSpacing: 0.3,
+                  }}>SELECCIONA LOS MESES</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                    {[3, 6, 9, 12, 18, 24].map((m) => {
+                      const active = mciMonths === m;
+                      return (
+                        <Pressable
+                          key={m}
+                          onPress={() => setMciMonths(m)}
+                          style={{
+                            paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                            borderWidth: active ? 1.5 : 1,
+                            borderColor: active ? t.orange : t.border,
+                            backgroundColor: active ? t.orange : t.surface,
+                            minWidth: 48, alignItems: 'center',
+                          }}
+                        >
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13,
+                            color: active ? '#fff' : t.text,
+                          }}>{m} meses</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  {/* Campo de Entrada de Total con Intereses */}
+                  <Text style={{
+                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted,
+                    marginBottom: 6, letterSpacing: 0.3,
+                  }}>TOTAL A PAGAR CON INTERESES ($)</Text>
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 8,
+                    backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+                    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+                  }}>
+                    <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, color: t.orange }}>$</Text>
+                    <TextInput
+                      value={mciTotalInput}
+                      onChangeText={(v) => {
+                        const clean = v.replace(/[^0-9.]/g, '');
+                        const parts = clean.split('.');
+                        if (parts.length > 2) return;
+                        setMciTotalInput(clean);
+                      }}
+                      placeholder={amtNum > 0 ? amtNum.toFixed(2) : "Ej. 220.00"}
+                      placeholderTextColor={t.textMuted}
+                      keyboardType="decimal-pad"
+                      style={{
+                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15,
+                        color: t.text, flex: 1, padding: 0,
+                      }}
+                    />
+                  </View>
+
+                  {/* Desglose Transparente del Total, Intereses y Mensualidad */}
+                  {mciMonths ? (() => {
+                    const baseCents = amtCents;
+                    const finalTotalCents = effectiveTxCents;
+                    const interestCents = finalTotalCents > baseCents ? finalTotalCents - baseCents : 0;
+                    const monthlyCents = Math.round(finalTotalCents / mciMonths);
+
+                    return (
+                      <View style={{
+                        backgroundColor: softFor(t, 'orange'),
+                        padding: 12, borderRadius: 12, marginTop: 14, gap: 6,
+                      }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted }}>Monto Original:</Text>
+                          <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.text }}>{fmtMXN(baseCents)}</Text>
+                        </View>
+                        {interestCents > 0 ? (
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.orange }}>Interés Cobrado:</Text>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.orange }}>+{fmtMXN(interestCents)}</Text>
+                          </View>
+                        ) : null}
+                        <View style={{ height: 1, backgroundColor: t.orange + '30', marginVertical: 2 }} />
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: t.text }}>Total de la Deuda:</Text>
+                          <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.orange }}>{fmtMXN(finalTotalCents)}</Text>
+                        </View>
+
+                        <View style={{
+                          flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4,
+                          paddingTop: 6, borderTopWidth: 1, borderTopColor: t.orange + '20',
+                        }}>
+                          <Icon name="calendar" size={14} color={t.orange} />
+                          <Text style={{
+                            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11.5, color: t.orange,
+                            flex: 1, lineHeight: 15,
+                          }}>
+                            Pagarás {fmtMXN(monthlyCents)}/mes durante {mciMonths} meses en tu saldo al corte.
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })() : null}
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -600,121 +862,29 @@ export function AddTransactionScreen({ initialType = 'EXPENSE', editingId }: Add
         }}
         onAddAccount={() => navigate({ screen: 'add-account' })}
       />
-      <Sheet open={showDestPicker} onClose={() => setShowDestPicker(false)} height="75%">
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 30 }}>
-          <Text style={{
-            fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text,
-            letterSpacing: -0.3, marginBottom: 14,
-          }}>¿Hacia dónde transfieres?</Text>
-
-          {/* Section: Accounts */}
-          <Text style={{
-            fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
-            letterSpacing: 0.2, marginBottom: 8, marginTop: 4,
-          }}>CUENTAS</Text>
-          
-          {state.accounts.filter(a => a.id !== accountId).map(a => {
-            const bal = computeAccountBalance(a, state.transactions);
-            const isSelected = !targetGoalId && destAccountId === a.id;
-            return (
-              <Pressable
-                key={a.id}
-                onPress={() => {
-                  setDestAccountId(a.id);
-                  setTargetGoalId(null);
-                  setShowDestPicker(false);
-                }}
-                style={({ pressed }) => [{
-                  flexDirection: 'row', alignItems: 'center', gap: 12,
-                  paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
-                  backgroundColor: isSelected ? softFor(t, 'indigo') : 'transparent',
-                  marginBottom: 6,
-                  opacity: pressed ? 0.7 : 1,
-                }]}
-              >
-                <AccountBadge acc={a} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{
-                    fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
-                  }}>{a.name}</Text>
-                  <Text style={{
-                    fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
-                    marginTop: 2,
-                  }}>{fmtMXN(bal)}</Text>
-                </View>
-                {isSelected ? (
-                  <View style={{
-                    width: 22, height: 22, borderRadius: 11, backgroundColor: t.indigo,
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Icon name="check" size={14} color="#fff" strokeWidth={3} />
-                  </View>
-                ) : null}
-              </Pressable>
-            );
-          })}
-
-          {/* Section: Savings Goals */}
-          {state.goals.length > 0 ? (
-            <>
-              <Text style={{
-                fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.textMuted,
-                letterSpacing: 0.2, marginBottom: 8, marginTop: 16,
-              }}>METAS DE AHORRO</Text>
-              
-              {state.goals.map(g => {
-                const isSelected = targetGoalId === g.id;
-                const acc = state.accounts.find(a => a.id === g.accountId);
-                const gColor = colorFor(t, g.color);
-                const gSoft = softFor(t, g.color);
-                return (
-                  <Pressable
-                    key={g.id}
-                    onPress={() => {
-                      setTargetGoalId(g.id);
-                      setDestAccountId(g.accountId);
-                      setShowDestPicker(false);
-                    }}
-                    style={({ pressed }) => [{
-                      flexDirection: 'row', alignItems: 'center', gap: 12,
-                      paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
-                      backgroundColor: isSelected ? softFor(t, 'indigo') : 'transparent',
-                      marginBottom: 6,
-                      opacity: pressed ? 0.7 : 1,
-                    }]}
-                  >
-                    <View style={{
-                      width: 38, height: 38, borderRadius: 11, backgroundColor: gSoft,
-                      alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Icon name={g.icon} size={20} color={gColor} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{
-                        fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: t.text,
-                      }}>{g.name}</Text>
-                      <Text style={{
-                        fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
-                        marginTop: 2,
-                      }}>
-                        Ahorro en: {acc?.name || 'Cuenta'} · Meta: {fmtMXN(g.target)}
-                      </Text>
-                    </View>
-                    {isSelected ? (
-                      <View style={{
-                        width: 22, height: 22, borderRadius: 11, backgroundColor: t.indigo,
-                        alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <Icon name="check" size={14} color="#fff" strokeWidth={3} />
-                      </View>
-                    ) : null}
-                  </Pressable>
-                );
-              })}
-            </>
-          ) : null}
-        </ScrollView>
-      </Sheet>
+      <AccountPickerSheet
+        open={showDestPicker}
+        onClose={() => setShowDestPicker(false)}
+        accounts={state.accounts.filter(a => a.id !== accountId)}
+        transactions={state.transactions}
+        selected={targetGoalId ? null : destAccountId}
+        onSelect={(id) => {
+          setDestAccountId(id);
+          setTargetGoalId(null);
+          setShowDestPicker(false);
+        }}
+        title="¿Hacia dónde transfieres?"
+        goals={state.goals}
+        selectedGoalId={targetGoalId}
+        onSelectGoal={(goalId) => {
+          const g = state.goals.find(x => x.id === goalId);
+          if (g) {
+            setTargetGoalId(g.id);
+            setDestAccountId(g.accountId);
+          }
+          setShowDestPicker(false);
+        }}
+      />
     </View>
   );
 }
