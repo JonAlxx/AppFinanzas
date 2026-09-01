@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { BackHandler } from 'react-native';
+import { BackHandler, Linking } from 'react-native';
 import { Route, BOTTOM_TABS } from './routes';
 
 export interface NavigationContextValue {
@@ -18,6 +18,20 @@ export function NavigationProvider({
 }: { initial?: Route; children: React.ReactNode }) {
   const [history, setHistory] = useState<Route[]>([initial]);
   const route = history[history.length - 1];
+
+  // Deep Link handler for Widget tap (+ Registrar Gasto)
+  useEffect(() => {
+    const handleUrl = (url: string | null) => {
+      if (!url) return;
+      if (url.includes('add-transaction')) {
+        setHistory([{ screen: 'dashboard' }, { screen: 'add-transaction', type: 'EXPENSE' } as Route]);
+      }
+    };
+
+    Linking.getInitialURL().then(handleUrl).catch(() => {});
+    const sub = Linking.addEventListener('url', event => handleUrl(event.url));
+    return () => sub.remove();
+  }, []);
 
   const navigate = (r: Route | Route['screen']) => {
     const next: Route = typeof r === 'string' ? ({ screen: r } as Route) : r;

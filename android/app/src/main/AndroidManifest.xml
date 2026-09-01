@@ -24,18 +24,129 @@
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="finanzasapp"/>
+      </intent-filter>
     </activity>
 
+    <!-- 1. Saldo Total -->
     <receiver
-        android:name=".FinanceWidgetProvider"
-        android:label="Resumen de Finanzas"
+        android:name=".WidgetTotalBalanceProvider"
+        android:label="Saldo Total"
         android:exported="true">
       <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
       </intent-filter>
       <meta-data
           android:name="android.appwidget.provider"
-          android:resource="@xml/finance_widget_info" />
+          android:resource="@xml/widget_total_balance_info" />
+    </receiver>
+
+    <!-- 2. Carrusel Cuentas y Tarjetas -->
+    <receiver
+        android:name=".WidgetAccountsCarouselProvider"
+        android:label="Cuentas y Tarjetas"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_accounts_carousel_info" />
+    </receiver>
+
+    <!-- 3. Presupuesto Mensual -->
+    <receiver
+        android:name=".WidgetMonthlyBudgetProvider"
+        android:label="Presupuesto Mensual"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_monthly_budget_info" />
+    </receiver>
+
+    <!-- 4. Meta de Ahorro -->
+    <receiver
+        android:name=".WidgetSavingsGoalProvider"
+        android:label="Meta de Ahorro"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_savings_goal_info" />
+    </receiver>
+
+    <!-- 5. Gastos por Categoría -->
+    <receiver
+        android:name=".WidgetCategoryExpensesProvider"
+        android:label="Gastos por Categoría"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_category_expenses_info" />
+    </receiver>
+
+    <!-- 6. Pagos y Recordatorios -->
+    <receiver
+        android:name=".WidgetUpcomingPaymentsProvider"
+        android:label="Pagos y Recordatorios"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_upcoming_payments_info" />
+    </receiver>
+
+    <!-- 7. Movimientos Recientes -->
+    <receiver
+        android:name=".WidgetRecentTransactionsProvider"
+        android:label="Movimientos Recientes"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_recent_transactions_info" />
+    </receiver>
+
+    <!-- 8. Calendario de Pagos -->
+    <receiver
+        android:name=".WidgetCalendarProvider"
+        android:label="Calendario de Pagos"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_calendar_info" />
+    </receiver>
+
+    <!-- 9. Gastos (Diario y Semanal) + Botón Registrar -->
+    <receiver
+        android:name=".WidgetExpensesProvider"
+        android:label="Gastos (Diario y Semanal)"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_expenses_info" />
     </receiver>
   </application>
 </manifest>

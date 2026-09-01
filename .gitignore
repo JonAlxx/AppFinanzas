@@ -42,3 +42,8 @@ yarn-error.*
 # IDEs
 .idea/
 
+# Local APK builds & local properties
+*.apk
+android/local.properties
+
+

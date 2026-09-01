@@ -1,14 +1,14 @@
 @if "%DEBUG%"=="" @echo off
-set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
-set "JAVA_EXE=C:\Program Files\Android\Android Studio\jbr\bin\java.exe"
-set "PATH=C:\Program Files\Android\Android Studio\jbr\bin;%PATH%"
+set "JAVA_HOME=C:\Users\fernando.carvajal.RHINOSYSTEMS\.jdks\jbr-21.0.11"
+set "JAVA_EXE=C:\Users\fernando.carvajal.RHINOSYSTEMS\.jdks\jbr-21.0.11\bin\java.exe"
+set "PATH=C:\Users\fernando.carvajal.RHINOSYSTEMS\.jdks\jbr-21.0.11\bin;%PATH%"
 
 @rem Set local scope for the variables with windows NT shell
 if "%OS%"=="Windows_NT" setlocal
 
-set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
-set "JAVA_EXE=C:\Program Files\Android\Android Studio\jbr\bin\java.exe"
-set "PATH=C:\Program Files\Android\Android Studio\jbr\bin;%PATH%"
+set "JAVA_HOME=C:\Users\fernando.carvajal.RHINOSYSTEMS\.jdks\jbr-21.0.11"
+set "JAVA_EXE=C:\Users\fernando.carvajal.RHINOSYSTEMS\.jdks\jbr-21.0.11\bin\java.exe"
+set "PATH=C:\Users\fernando.carvajal.RHINOSYSTEMS\.jdks\jbr-21.0.11\bin;%PATH%"
 
 set DIRNAME=%~dp0
 if "%DIRNAME%"=="" set DIRNAME=.
@@ -28,8 +28,8 @@ if %ERRORLEVEL% equ 0 goto execute
 goto fail
 
 :findJavaFromJavaHome
-set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
-set "JAVA_EXE=C:\Program Files\Android\Android Studio\jbr\bin\java.exe"
+set "JAVA_HOME=C:\Users\fernando.carvajal.RHINOSYSTEMS\.jdks\jbr-21.0.11"
+set "JAVA_EXE=C:\Users\fernando.carvajal.RHINOSYSTEMS\.jdks\jbr-21.0.11\bin\java.exe"
 
 if exist "%JAVA_EXE%" goto execute
 
