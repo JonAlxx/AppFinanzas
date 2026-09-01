@@ -306,7 +306,7 @@ export function SettingsScreen() {
         <Text style={{
           textAlign: 'center', marginTop: 14,
           fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textSubtle,
-        }}>Finanzas Personales · v1.0.15</Text>
+        }}>Finanzas Personales · v1.0.17</Text>
       </ScrollView>
 
       {/* Currency picker sheet */}

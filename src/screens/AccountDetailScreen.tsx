@@ -174,9 +174,23 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
       const paidCents = isSettled ? totalAmountCents : Math.min(totalAmountCents, Math.round(monthlyCents * elapsedMonths));
       const remainingCents = isSettled ? 0 : Math.max(0, totalAmountCents - paidCents);
 
-      const endDate = new Date(txDate);
-      endDate.setMonth(endDate.getMonth() + totalMonths);
-      const endDateLabel = `${MONTHS_SHORT_NAME[endDate.getMonth()]} ${endDate.getFullYear()}`;
+      const sdFixed = Math.min(28, Math.max(1, sd));
+      let firstCutoffYear = txDate.getFullYear();
+      let firstCutoffMonth = txDate.getMonth();
+
+      const sameMonthCutoff = new Date(firstCutoffYear, firstCutoffMonth, sdFixed, 23, 59, 59, 999);
+      if (tx.date > sameMonthCutoff.getTime()) {
+        firstCutoffMonth += 1;
+        if (firstCutoffMonth > 11) {
+          firstCutoffMonth = 0;
+          firstCutoffYear += 1;
+        }
+      }
+
+      const lastCutoffTotalMonths = firstCutoffMonth + (totalMonths - 1);
+      const lastCutoffYear = firstCutoffYear + Math.floor(lastCutoffTotalMonths / 12);
+      const lastCutoffMonth = lastCutoffTotalMonths % 12;
+      const endDateLabel = `${MONTHS_SHORT_NAME[lastCutoffMonth]} ${lastCutoffYear}`;
 
       const category = catById(tx.categoryId, state.customCategories);
       const pct = isSettled ? 100 : Math.min(100, Math.round((elapsedMonths / totalMonths) * 100));
@@ -207,6 +221,28 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
     };
   }, [acc, state.transactions, state.customCategories]);
 
+  const activeInstallmentsDueInCycle = useMemo(() => {
+    if (!acc || acc.type !== 'CREDIT_CARD') return 0;
+    let sum = 0;
+    for (const item of installmentsData.items) {
+      if (item.remainingCents > 0 && item.elapsedMonths < item.totalMonths) {
+        let paymentsAfterPurchase = 0;
+        for (const t of state.transactions) {
+          if (t.date >= item.tx.date) {
+            if ((t.type === 'INCOME' && t.accountId === acc.id && t.categoryId === 'cat-debt') ||
+                (t.type === 'TRANSFER' && t.destinationAccountId === acc.id)) {
+              paymentsAfterPurchase++;
+            }
+          }
+        }
+        if (paymentsAfterPurchase === 0) {
+          sum += item.monthlyCents;
+        }
+      }
+    }
+    return sum;
+  }, [acc, installmentsData, state.transactions]);
+
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'period' | 'total' | 'custom'>('period');
   const [customPaymentAmount, setCustomPaymentAmount] = useState('');
@@ -215,6 +251,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
   const [showDatesSection, setShowDatesSection] = useState(false);
   const [showUseSection, setShowUseSection] = useState(true);
   const [showInstallmentsSection, setShowInstallmentsSection] = useState(false);
+  const [installmentsFilter, setInstallmentsFilter] = useState<'active' | 'settled' | 'all'>('active');
   const [cutoffAmount, setCutoffAmount] = useState('');
   const [cutoffMinimumPayment, setCutoffMinimumPayment] = useState('');
   const [cutoffInterestRate, setCutoffInterestRate] = useState('');
@@ -638,27 +675,10 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                                 TOTAL PAGO DEL PERIODO (CORTE A CORTE)
                               </Text>
                               {(() => {
-                                let paymentsInCurrentCycle = 0;
-                                if (acc && acc.statementDay) {
-                                  const now = new Date();
-                                  const sd = acc.statementDay;
-                                  let cutoffDate = new Date(now.getFullYear(), now.getMonth(), sd, 0, 0, 0, 0);
-                                  if (cutoffDate.getTime() > now.getTime()) {
-                                    cutoffDate = new Date(now.getFullYear(), now.getMonth() - 1, sd, 0, 0, 0, 0);
-                                  }
-                                  for (const t of state.transactions) {
-                                    if (t.date >= cutoffDate.getTime()) {
-                                      if ((t.type === 'INCOME' && t.accountId === acc.id && t.categoryId === 'cat-debt') ||
-                                          (t.type === 'TRANSFER' && t.destinationAccountId === acc.id)) {
-                                        paymentsInCurrentCycle += t.amount;
-                                      }
-                                    }
-                                  }
-                                }
                                 const debtAmount = balance < 0 ? Math.abs(balance) : 0;
                                 const singleExpensesInCycle = postCutoffExpenses;
-                                const basePeriod = singleExpensesInCycle + installmentsData.totalMonthlyCents;
-                                const remainingPeriod = balance >= 0 ? 0 : Math.min(debtAmount, Math.max(0, basePeriod - paymentsInCurrentCycle));
+                                const grossPeriodAmountCents = singleExpensesInCycle + activeInstallmentsDueInCycle;
+                                const remainingPeriod = balance >= 0 ? 0 : Math.min(debtAmount, grossPeriodAmountCents);
                                 return (
                                   <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: remainingPeriod > 0 ? t.rose : t.green, marginTop: 3, fontVariant: ['tabular-nums'] }}>
                                     {remainingPeriod === 0 ? '✅ ¡Periodo al corriente! ($0.00)' : fmtMXN(remainingPeriod)}
@@ -715,7 +735,7 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                           <View style={{
                             flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
                             backgroundColor: t.surfaceAlt, padding: 12, borderRadius: 12,
-                            borderWidth: 1, borderColor: t.border, marginBottom: 14,
+                            borderWidth: 1, borderColor: t.border, marginBottom: 12,
                           }}>
                             <View style={{ flex: 1 }}>
                               <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted, letterSpacing: 0.3 }}>
@@ -736,61 +756,143 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
                             </View>
                           </View>
 
-                          {/* Items List */}
-                          <View style={{ gap: 10 }}>
-                            {installmentsData.items.map((item) => (
-                              <Pressable
-                                key={item.tx.id}
-                                onPress={() => navigate({ screen: 'transaction-detail', id: item.tx.id })}
-                                style={({ pressed }) => [{
-                                  padding: 12, borderRadius: 14,
-                                  backgroundColor: t.surface,
+                          {/* Segmented Filter Control */}
+                          {(() => {
+                            const activeItems = installmentsData.items.filter(i => i.remainingCents > 0);
+                            const settledItems = installmentsData.items.filter(i => i.remainingCents === 0);
+                            const displayedItems = installmentsFilter === 'active' 
+                              ? activeItems 
+                              : installmentsFilter === 'settled' 
+                                ? settledItems 
+                                : installmentsData.items;
+
+                            return (
+                              <>
+                                <View style={{
+                                  flexDirection: 'row', backgroundColor: t.surfaceAlt,
+                                  padding: 3, borderRadius: 10, marginBottom: 12,
                                   borderWidth: 1, borderColor: t.border,
-                                  opacity: pressed ? 0.75 : 1,
-                                }]}
-                              >
-                                {/* Top row: Badge + Title + MSI/MCI Pill */}
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                                  <CategoryBadge cat={item.category} size={32} radius={9} />
-                                  <View style={{ flex: 1 }}>
-                                    <Text numberOfLines={1} style={{
-                                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text,
-                                    }}>{item.tx.note || item.category?.name || 'Compra'}</Text>
+                                }}>
+                                  <Pressable
+                                    onPress={() => setInstallmentsFilter('active')}
+                                    style={{
+                                      flex: 1, paddingVertical: 6, borderRadius: 8,
+                                      backgroundColor: installmentsFilter === 'active' ? t.surface : 'transparent',
+                                      alignItems: 'center',
+                                    }}
+                                  >
                                     <Text style={{
-                                      fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted, marginTop: 1,
+                                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11,
+                                      color: installmentsFilter === 'active' ? t.text : t.textMuted,
                                     }}>
-                                      {item.remainingCents === 0 ? `✅ Liquidada total (${item.totalMonths} de ${item.totalMonths})` : (item.elapsedMonths === 0 ? `0 de ${item.totalMonths} pagados (Próximo 1er pago)` : `Pago ${item.elapsedMonths} de ${item.totalMonths}`)}
+                                      Activas ({activeItems.length})
                                     </Text>
+                                  </Pressable>
+
+                                  <Pressable
+                                    onPress={() => setInstallmentsFilter('settled')}
+                                    style={{
+                                      flex: 1, paddingVertical: 6, borderRadius: 8,
+                                      backgroundColor: installmentsFilter === 'settled' ? t.surface : 'transparent',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <Text style={{
+                                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11,
+                                      color: installmentsFilter === 'settled' ? t.text : t.textMuted,
+                                    }}>
+                                      Finalizadas ({settledItems.length})
+                                    </Text>
+                                  </Pressable>
+
+                                  <Pressable
+                                    onPress={() => setInstallmentsFilter('all')}
+                                    style={{
+                                      flex: 1, paddingVertical: 6, borderRadius: 8,
+                                      backgroundColor: installmentsFilter === 'all' ? t.surface : 'transparent',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <Text style={{
+                                      fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11,
+                                      color: installmentsFilter === 'all' ? t.text : t.textMuted,
+                                    }}>
+                                      Todas ({installmentsData.items.length})
+                                    </Text>
+                                  </Pressable>
+                                </View>
+
+                                {/* Items List */}
+                                {displayedItems.length > 0 ? (
+                                  <View style={{ gap: 10 }}>
+                                    {displayedItems.map((item) => (
+                                      <Pressable
+                                        key={item.tx.id}
+                                        onPress={() => navigate({ screen: 'transaction-detail', id: item.tx.id })}
+                                        style={({ pressed }) => [{
+                                          padding: 12, borderRadius: 14,
+                                          backgroundColor: t.surface,
+                                          borderWidth: 1, borderColor: t.border,
+                                          opacity: pressed ? 0.75 : 1,
+                                        }]}
+                                      >
+                                        {/* Top row: Badge + Title + MSI/MCI Pill */}
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                          <CategoryBadge cat={item.category} size={32} radius={9} />
+                                          <View style={{ flex: 1 }}>
+                                            <Text numberOfLines={1} style={{
+                                              fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text,
+                                            }}>{item.tx.note || item.category?.name || 'Compra'}</Text>
+                                            <Text style={{
+                                              fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted, marginTop: 1,
+                                            }}>
+                                              {item.remainingCents === 0 ? `✅ Liquidada total (${item.totalMonths} de ${item.totalMonths})` : (item.elapsedMonths === 0 ? `0 de ${item.totalMonths} pagados (Próximo 1er pago)` : `Pago ${item.elapsedMonths} de ${item.totalMonths}`)}
+                                            </Text>
+                                          </View>
+                                          <View style={{
+                                            paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+                                            backgroundColor: item.isMci ? softFor(t, 'orange') : softFor(t, 'green'),
+                                          }}>
+                                            <Text style={{
+                                              fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 9.5,
+                                              color: item.isMci ? t.orange : t.green,
+                                            }}>
+                                              {item.totalMonths} {item.isMci ? 'MCI' : 'MSI'}
+                                            </Text>
+                                          </View>
+                                        </View>
+
+                                        {/* Progress bar */}
+                                        <ProgressBar pct={item.pct} color={item.isMci ? 'orange' : 'green'} height={5} />
+
+                                        {/* Bottom row: Monthly payment + Remaining balance + End date */}
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                                          <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11.5, color: t.text, fontVariant: ['tabular-nums'] }}>
+                                            {fmtMXN(item.monthlyCents)}/mes
+                                          </Text>
+                                          <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.textMuted, fontVariant: ['tabular-nums'] }}>
+                                            {item.remainingCents > 0 ? `Resta ${fmtMXN(item.remainingCents)} · ` : '¡Finalizado! · '}
+                                            {item.endDateLabel}
+                                          </Text>
+                                        </View>
+                                      </Pressable>
+                                    ))}
                                   </View>
-                                  <View style={{
-                                    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
-                                    backgroundColor: item.isMci ? softFor(t, 'orange') : softFor(t, 'green'),
+                                ) : (
+                                  <Text style={{
+                                    fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
+                                    textAlign: 'center', paddingVertical: 14,
                                   }}>
-                                    <Text style={{
-                                      fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 9.5,
-                                      color: item.isMci ? t.orange : t.green,
-                                    }}>
-                                      {item.totalMonths} {item.isMci ? 'MCI' : 'MSI'}
-                                    </Text>
-                                  </View>
-                                </View>
-
-                                {/* Progress bar */}
-                                <ProgressBar pct={item.pct} color={item.isMci ? 'orange' : 'green'} height={5} />
-
-                                {/* Bottom row: Monthly payment + Remaining balance + End date */}
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11.5, color: t.text, fontVariant: ['tabular-nums'] }}>
-                                    {fmtMXN(item.monthlyCents)}/mes
+                                    {installmentsFilter === 'active' 
+                                      ? 'No tienes compras a meses activas en esta tarjeta.'
+                                      : installmentsFilter === 'settled'
+                                        ? 'No tienes compras a meses finalizadas aún.'
+                                        : 'No tienes compras a meses registradas.'}
                                   </Text>
-                                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.textMuted, fontVariant: ['tabular-nums'] }}>
-                                    {item.remainingCents > 0 ? `Resta ${fmtMXN(item.remainingCents)} · ` : '¡Finalizado! · '}
-                                    {item.endDateLabel}
-                                  </Text>
-                                </View>
-                              </Pressable>
-                            ))}
-                          </View>
+                                )}
+                              </>
+                            );
+                          })()}
                         </>
                       ) : (
                         <Text style={{
@@ -1029,31 +1131,10 @@ export function AccountDetailScreen({ accountId }: AccountDetailScreenProps) {
 
             {/* Option 1: Pago del Periodo (Corte a corte) */}
             {(() => {
-              const activeInstallmentsMonthlySum = installmentsData.items
-                .filter(i => i.remainingCents > 0 && i.elapsedMonths < i.totalMonths)
-                .reduce((sum, i) => sum + i.monthlyCents, 0);
-
-              let paymentsInCurrentCycle = 0;
-              if (acc && acc.statementDay) {
-                const now = new Date();
-                const sd = acc.statementDay;
-                let cutoffDate = new Date(now.getFullYear(), now.getMonth(), sd, 0, 0, 0, 0);
-                if (cutoffDate.getTime() > now.getTime()) {
-                  cutoffDate = new Date(now.getFullYear(), now.getMonth() - 1, sd, 0, 0, 0, 0);
-                }
-                for (const t of state.transactions) {
-                  if (t.date >= cutoffDate.getTime()) {
-                    if ((t.type === 'INCOME' && t.accountId === acc.id && t.categoryId === 'cat-debt') ||
-                        (t.type === 'TRANSFER' && t.destinationAccountId === acc.id)) {
-                      paymentsInCurrentCycle += t.amount;
-                    }
-                  }
-                }
-              }
               const debtAmount = balance < 0 ? Math.abs(balance) : 0;
               const singleExpensesInCycle = postCutoffExpenses;
-              const grossPeriodAmountCents = singleExpensesInCycle + activeInstallmentsMonthlySum;
-              const periodAmountCents = balance >= 0 ? 0 : Math.min(debtAmount, Math.max(0, grossPeriodAmountCents - paymentsInCurrentCycle));
+              const grossPeriodAmountCents = singleExpensesInCycle + activeInstallmentsDueInCycle;
+              const periodAmountCents = balance >= 0 ? 0 : Math.min(debtAmount, grossPeriodAmountCents);
               const totalDebtCents = Math.abs(balance);
               return (
                 <>

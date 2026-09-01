@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { catById, subscriptionBrandFor } from '../data/catalog';
 import { fmtMXN } from '../data/format';
-import { ruleOccursOnDate } from '../data/selectors';
+import { ruleOccursOnDate, getCardCutoffProjection, CardCutoffProjection } from '../data/selectors';
 import { Recurring } from '../data/types';
 import { useAppState } from '../state/AppStateContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -94,6 +94,60 @@ export function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState<number>(today);
   const [selectedUpcoming, setSelectedUpcoming] = useState<{ rule: Recurring; date: number } | null>(null);
 
+  // Card Payment Modal states
+  const [cardPaymentModalProj, setCardPaymentModalProj] = useState<CardCutoffProjection | null>(null);
+  const [paymentType, setPaymentType] = useState<'period' | 'total' | 'custom'>('period');
+  const [customPaymentAmount, setCustomPaymentAmount] = useState('');
+  const [fromAccountId, setFromAccountId] = useState('');
+
+  function confirmCardPayment(
+    cardAcc: any,
+    periodAmtCents: number,
+    totalDebtCents: number,
+    sourceAccId: string
+  ) {
+    let payAmtCents = 0;
+    if (paymentType === 'period') payAmtCents = periodAmtCents > 0 ? periodAmtCents : totalDebtCents;
+    else if (paymentType === 'total') payAmtCents = totalDebtCents;
+    else if (paymentType === 'custom') payAmtCents = Math.round((parseFloat(customPaymentAmount) || 0) * 100);
+
+    if (payAmtCents <= 0) return;
+
+    const now = Date.now();
+    const sourceAcc = state.accounts.find(a => a.id === sourceAccId) || state.accounts.find(a => a.type !== 'CREDIT_CARD');
+
+    if (sourceAcc && sourceAcc.id !== cardAcc.id) {
+      dispatch({
+        type: 'ADD_TX',
+        tx: {
+          id: 'tx-' + now,
+          type: 'TRANSFER',
+          amount: payAmtCents,
+          date: now,
+          accountId: sourceAcc.id,
+          destinationAccountId: cardAcc.id,
+          note: `Pago de tarjeta ${cardAcc.name}`,
+        },
+      });
+    } else {
+      dispatch({
+        type: 'ADD_TX',
+        tx: {
+          id: 'tx-' + now,
+          type: 'INCOME',
+          amount: payAmtCents,
+          date: now,
+          accountId: cardAcc.id,
+          categoryId: 'cat-debt',
+          note: `Pago de tarjeta ${cardAcc.name}`,
+        },
+      });
+    }
+
+    setCardPaymentModalProj(null);
+    setCustomPaymentAmount('');
+  }
+
   function confirmPayment(p: { rule: Recurring; date: number }) {
     const now = new Date();
     const todayStart = new Date();
@@ -151,6 +205,47 @@ export function CalendarScreen() {
     return state.recurring.filter(r => ruleOccursOnDate(r, selectedDate));
   }, [state.recurring, selectedDate]);
 
+  // Credit card cutoff projections for the current viewMonth
+  const creditCardProjections = useMemo(() => {
+    const creditAccounts = state.accounts.filter(a => a.type === 'CREDIT_CARD');
+    const list: CardCutoffProjection[] = [];
+    for (const acc of creditAccounts) {
+      const proj = getCardCutoffProjection(acc, state.transactions, viewYear, viewMonth);
+      if (proj) list.push(proj);
+    }
+    return list;
+  }, [state.accounts, state.transactions, viewYear, viewMonth]);
+
+  // Map cutoff & payment days -> projections
+  const cardCutoffDayMap = useMemo(() => {
+    const map = new Map<number, CardCutoffProjection[]>();
+    for (const proj of creditCardProjections) {
+      const sd = Math.min(28, Math.max(1, proj.account.statementDay || 1));
+      const pd = proj.account.paymentDay ? Math.min(28, Math.max(1, proj.account.paymentDay)) : null;
+
+      const existingSd = map.get(sd) || [];
+      if (!existingSd.includes(proj)) existingSd.push(proj);
+      map.set(sd, existingSd);
+
+      if (pd != null) {
+        const existingPd = map.get(pd) || [];
+        if (!existingPd.includes(proj)) existingPd.push(proj);
+        map.set(pd, existingPd);
+      }
+    }
+    return map;
+  }, [creditCardProjections]);
+
+  // Projections for selected date
+  const selectedDayCutoffProjections = useMemo(() => {
+    const d = new Date(selectedDate);
+    const day = d.getDate();
+    const month = d.getMonth();
+    const year = d.getFullYear();
+    if (month !== viewMonth || year !== viewYear) return [];
+    return cardCutoffDayMap.get(day) || [];
+  }, [selectedDate, viewMonth, viewYear, cardCutoffDayMap]);
+
   function navMonth(delta: number) {
     let m = viewMonth + delta;
     let y = viewYear;
@@ -158,6 +253,12 @@ export function CalendarScreen() {
     if (m < 0) { m = 11; y -= 1; }
     setViewMonth(m);
     setViewYear(y);
+
+    const creditAccounts = state.accounts.filter(a => a.type === 'CREDIT_CARD');
+    const targetSd = creditAccounts.length > 0
+      ? (creditAccounts[0].paymentDay || creditAccounts[0].statementDay || 15)
+      : 1;
+    setSelectedDate(new Date(y, m, Math.min(28, Math.max(1, targetSd))).getTime());
   }
 
   const totalSelected = selectedRules.reduce((s, r) => s + (r.type === 'INCOME' ? r.amount : -r.amount), 0);
@@ -224,8 +325,10 @@ export function CalendarScreen() {
               const isToday = cellMs === today;
               const isSelected = cellMs === selectedDate;
               const rules = dayMap.get(cell);
+              const cardCutoffs = cardCutoffDayMap.get(cell);
               const hasIncome = rules?.some(r => r.type === 'INCOME');
               const hasExpense = rules?.some(r => r.type === 'EXPENSE');
+              const hasCardCutoff = cardCutoffs && cardCutoffs.length > 0;
               return (
                 <View key={idx} style={{ width: '14.2857%', aspectRatio: 1, padding: 2 }}>
                   <Pressable
@@ -243,7 +346,7 @@ export function CalendarScreen() {
                       color: isSelected ? '#fff' : isToday ? t.indigo : t.text,
                       fontVariant: ['tabular-nums'],
                     }}>{cell}</Text>
-                    {(hasIncome || hasExpense) ? (
+                    {(hasIncome || hasExpense || hasCardCutoff) ? (
                       <View style={{ flexDirection: 'row', gap: 2, marginTop: 2 }}>
                         {hasIncome ? (
                           <View style={{
@@ -255,6 +358,12 @@ export function CalendarScreen() {
                           <View style={{
                             width: 4, height: 4, borderRadius: 2,
                             backgroundColor: isSelected ? '#fff' : t.rose,
+                          }} />
+                        ) : null}
+                        {hasCardCutoff ? (
+                          <View style={{
+                            width: 4, height: 4, borderRadius: 2,
+                            backgroundColor: isSelected ? '#fff' : t.indigo,
                           }} />
                         ) : null}
                       </View>
@@ -282,6 +391,12 @@ export function CalendarScreen() {
                 fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.textMuted,
               }}>Pago</Text>
             </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.indigo }} />
+              <Text style={{
+                fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: t.textMuted,
+              }}>Corte Tarjeta</Text>
+            </View>
           </View>
         </Card>
 
@@ -300,13 +415,190 @@ export function CalendarScreen() {
             })()}
           </Text>
 
-          {selectedRules.length === 0 ? (
+          {/* Credit Card Cutoff / Payment Projection Cards */}
+          {selectedDayCutoffProjections.map((proj) => {
+            const selDayNum = new Date(selectedDate).getDate();
+            const sd = Math.min(28, Math.max(1, proj.account.statementDay || 1));
+            const pd = proj.account.paymentDay ? Math.min(28, Math.max(1, proj.account.paymentDay)) : null;
+
+            const isPaymentView = pd != null && pd === selDayNum && pd !== sd;
+            const cardThemeColor = isPaymentView ? t.green : t.indigo;
+            const bgSoft = isPaymentView ? softFor(t, 'green') : softFor(t, 'indigo');
+            const titleText = isPaymentView ? `Fecha Límite de Pago · ${proj.account.name}` : `Corte ${proj.account.name}`;
+            const badgeText = isPaymentView ? `Límite de Pago día ${pd}` : `Corte día ${sd}`;
+
+            return (
+              <Card key={proj.account.id} padding={14} style={{ marginBottom: 14, backgroundColor: bgSoft, borderWidth: 1, borderColor: cardThemeColor + '33' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Icon name="card" size={20} color={cardThemeColor} strokeWidth={2.5} />
+                    <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.text }}>
+                      {titleText}
+                    </Text>
+                  </View>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: cardThemeColor }}>
+                    <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 10, color: '#fff' }}>
+                      {badgeText}
+                    </Text>
+                  </View>
+                </View>
+
+                {isPaymentView ? (
+                  /* Fecha Límite de Pago View: Focus on Pago de Corte a Corte vs Pago Total Deuda Tarjeta */
+                  <View style={{ gap: 10 }}>
+                    <View style={{
+                      backgroundColor: t.surface, padding: 14, borderRadius: 14,
+                      borderWidth: 1, borderColor: t.border, gap: 12,
+                    }}>
+                      {/* Row 1: Pago de Corte a Corte */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted, letterSpacing: 0.2 }}>
+                            PAGO DE CORTE A CORTE (PERIODO)
+                          </Text>
+                          <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 10.5, color: t.textMuted, marginTop: 2 }}>
+                            Monto a liquidar hoy para no generar intereses
+                          </Text>
+                        </View>
+                        <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 16, color: proj.periodObligationCents > 0 ? t.rose : t.green, fontVariant: ['tabular-nums'] }}>
+                          {proj.periodObligationCents === 0 ? '✅ $0.00 al corriente' : fmtMXN(proj.periodObligationCents)}
+                        </Text>
+                      </View>
+
+                      <View style={{ height: 1, backgroundColor: t.border }} />
+
+                      {/* Row 2: Pago Total Deuda Tarjeta */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted, letterSpacing: 0.2 }}>
+                            PAGO TOTAL DEUDA TARJETA
+                          </Text>
+                          <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 10.5, color: t.textMuted, marginTop: 2 }}>
+                            Saldo total pendiente en la tarjeta de crédito
+                          </Text>
+                        </View>
+                        <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 16, color: t.text, fontVariant: ['tabular-nums'] }}>
+                          {fmtMXN(proj.totalCardDebtCents)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  /* Día de Corte View: Dual Balances + Breakdown of Active Installments & Single Purchases */
+                  <>
+                    {/* Dual Balances */}
+                    <View style={{
+                      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                      backgroundColor: t.surface, padding: 12, borderRadius: 12,
+                      borderWidth: 1, borderColor: t.border, marginBottom: 10,
+                    }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted, letterSpacing: 0.2 }}>
+                          PAGO DEL PERIODO (OBLIGATORIO)
+                        </Text>
+                        <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: proj.periodObligationCents > 0 ? t.rose : t.green, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                          {proj.periodObligationCents === 0 ? '✅ $0.00 al corriente' : fmtMXN(proj.periodObligationCents)}
+                        </Text>
+                      </View>
+                      <View style={{ width: 1, height: 26, backgroundColor: t.border, marginHorizontal: 8 }} />
+                      <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                        <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, color: t.textMuted, letterSpacing: 0.2 }}>
+                          DEUDA TOTAL ACUMULADA
+                        </Text>
+                        <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                          {fmtMXN(proj.totalCardDebtCents)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Active Breakdown Sections */}
+                    {proj.activeInstallments.length > 0 || proj.singleExpensesList.length > 0 ? (
+                      <View style={{ gap: 10 }}>
+                        {/* Section 1: Active Installments */}
+                        {proj.activeInstallments.length > 0 && (
+                          <View style={{ gap: 5 }}>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10.5, color: t.textMuted }}>
+                              📦 Compras a meses (cuota del mes):
+                            </Text>
+                            {proj.activeInstallments.map((inst, i) => (
+                              <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: t.surfaceAlt, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 }}>
+                                <View style={{ flex: 1, marginRight: 8 }}>
+                                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.text }}>
+                                    {inst.tx.note || 'Compra a Meses'}
+                                  </Text>
+                                  <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 10, color: t.textMuted, marginTop: 1 }}>
+                                    Cuota {inst.installmentIndex} de {inst.totalMonths} {inst.isMci ? 'MCI' : 'MSI'}
+                                  </Text>
+                                </View>
+                                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.indigo, fontVariant: ['tabular-nums'] }}>
+                                  {fmtMXN(inst.monthlyCents)}/mes
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Section 2: Single Purchases in Cycle */}
+                        {proj.singleExpensesList.length > 0 && (
+                          <View style={{ gap: 5 }}>
+                            <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10.5, color: t.textMuted }}>
+                              🛒 Compras de contado del ciclo:
+                            </Text>
+                            {proj.singleExpensesList.map((tx, i) => (
+                              <View key={tx.id || i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: t.surfaceAlt, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 }}>
+                                <View style={{ flex: 1, marginRight: 8 }}>
+                                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: t.text }}>
+                                    {tx.note || catById(tx.categoryId || '', state.customCategories)?.name || 'Compra de contado'}
+                                  </Text>
+                                  <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 10, color: t.textMuted, marginTop: 1 }}>
+                                    Contado (Corte activo)
+                                  </Text>
+                                </View>
+                                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.rose, fontVariant: ['tabular-nums'] }}>
+                                  {fmtMXN(tx.amount)}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    ) : (
+                      <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 11, color: t.textMuted, textAlign: 'center', paddingVertical: 4 }}>
+                        No hay consumos ni mensualidades en este corte.
+                      </Text>
+                    )}
+                  </>
+                )}
+
+                {/* Direct Payment Action Button */}
+                <Pressable
+                  onPress={() => {
+                    setCardPaymentModalProj(proj);
+                    setPaymentType('period');
+                    setCustomPaymentAmount('');
+                  }}
+                  style={({ pressed }) => [{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    backgroundColor: cardThemeColor, paddingVertical: 12, borderRadius: 12, marginTop: 12,
+                    opacity: pressed ? 0.8 : 1,
+                  }]}
+                >
+                  <Icon name="card" size={16} color="#fff" strokeWidth={2.5} />
+                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13, color: '#fff' }}>
+                    REGISTRAR PAGO DE TARJETA
+                  </Text>
+                </Pressable>
+              </Card>
+            );
+          })}
+
+          {selectedRules.length === 0 && selectedDayCutoffProjections.length === 0 ? (
             <EmptyState
               icon="calendar"
               title="Sin pagos este día"
               message={isSelectedInView ? 'Toca otro día con punto para ver sus pagos.' : 'Cambia de mes para ver más días con pagos.'}
             />
-          ) : (
+          ) : selectedRules.length > 0 ? (
             <>
               <Card padding={4}>
                 {selectedRules.map((r, i) => {
@@ -378,7 +670,7 @@ export function CalendarScreen() {
                 }}>{totalSelected >= 0 ? '+' : '-'}{fmtMXN(Math.abs(totalSelected))}</Text>
               </View>
             </>
-          )}
+          ) : null}
         </View>
       </ScrollView>
 
@@ -587,6 +879,148 @@ export function CalendarScreen() {
                   </Pressable>
                 </View>
               )}
+            </View>
+          );
+        })()}
+      </Sheet>
+
+      {/* Card Payment Modal Sheet */}
+      <Sheet open={cardPaymentModalProj !== null} onClose={() => setCardPaymentModalProj(null)} height="70%">
+        {cardPaymentModalProj && (() => {
+          const cardAcc = cardPaymentModalProj.account;
+          const periodAmt = cardPaymentModalProj.periodObligationCents;
+          const totalDebt = cardPaymentModalProj.totalCardDebtCents;
+
+          const debitAccounts = state.accounts.filter(a => a.id !== cardAcc.id);
+          const currentSourceAccId = fromAccountId || (debitAccounts[0]?.id || '');
+
+          return (
+            <View style={{ gap: 14 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 18, color: t.text }}>
+                  Registrar Pago a {cardAcc.name}
+                </Text>
+                <Pressable onPress={() => setCardPaymentModalProj(null)} style={{ padding: 4 }}>
+                  <Icon name="x" size={18} color={t.textMuted} />
+                </Pressable>
+              </View>
+
+              {/* Debt Info */}
+              <View style={{ backgroundColor: softFor(t, 'indigo'), padding: 14, borderRadius: 14, borderWidth: 1, borderColor: t.indigo + '33' }}>
+                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 10, color: t.indigo, letterSpacing: 0.3 }}>
+                  DEUDA ACTUAL EN TARJETA
+                </Text>
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 24, color: t.indigo, marginTop: 4, fontVariant: ['tabular-nums'] }}>
+                  {fmtMXN(totalDebt)}
+                </Text>
+              </View>
+
+              <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted }}>
+                OPCIÓN DE PAGO
+              </Text>
+
+              {/* Option 1: Pago del Periodo */}
+              <Pressable
+                onPress={() => setPaymentType('period')}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  padding: 12, borderRadius: 12, borderWidth: 1,
+                  borderColor: paymentType === 'period' ? t.indigo : t.border,
+                  backgroundColor: paymentType === 'period' ? softFor(t, 'indigo') : 'transparent',
+                }}
+              >
+                <View style={{
+                  width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+                  borderColor: paymentType === 'period' ? t.indigo : t.textMuted,
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {paymentType === 'period' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.indigo }} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>
+                    Pago del Periodo (Corte a corte)
+                  </Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 10.5, color: t.textMuted, marginTop: 1 }}>
+                    Monto para no generar intereses en este ciclo
+                  </Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: periodAmt === 0 ? t.green : t.indigo, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                    {periodAmt === 0 ? '✅ Periodo al corriente ($0.00)' : fmtMXN(periodAmt)}
+                  </Text>
+                </View>
+              </Pressable>
+
+              {/* Option 2: Pago Total */}
+              <Pressable
+                onPress={() => setPaymentType('total')}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  padding: 12, borderRadius: 12, borderWidth: 1,
+                  borderColor: paymentType === 'total' ? t.green : t.border,
+                  backgroundColor: paymentType === 'total' ? softFor(t, 'green') : 'transparent',
+                }}
+              >
+                <View style={{
+                  width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+                  borderColor: paymentType === 'total' ? t.green : t.textMuted,
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {paymentType === 'total' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.green }} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text }}>
+                    Pago Total (Liquidación completa)
+                  </Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_500Medium', fontSize: 10.5, color: t.textMuted, marginTop: 1 }}>
+                    Liquida la deuda entera del plástico
+                  </Text>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: t.green, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+                    {fmtMXN(totalDebt)}
+                  </Text>
+                </View>
+              </Pressable>
+
+              {/* Account selector */}
+              {debitAccounts.length > 0 && (
+                <View style={{ gap: 6 }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted }}>
+                    PAGAR DESDE CUENTA:
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {debitAccounts.map((a) => {
+                      const isSel = currentSourceAccId === a.id;
+                      return (
+                        <Pressable
+                          key={a.id}
+                          onPress={() => setFromAccountId(a.id)}
+                          style={{
+                            paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+                            borderColor: isSel ? t.indigo : t.border,
+                            backgroundColor: isSel ? softFor(t, 'indigo') : t.surfaceAlt,
+                          }}
+                        >
+                          <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 12, color: isSel ? t.indigo : t.text }}>
+                            {a.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Confirm Button */}
+              <Pressable
+                onPress={() => confirmCardPayment(cardAcc, periodAmt, totalDebt, currentSourceAccId)}
+                style={({ pressed }) => [{
+                  backgroundColor: t.indigo, paddingVertical: 14, borderRadius: 14,
+                  alignItems: 'center', justifyContent: 'center', marginTop: 6,
+                  opacity: pressed ? 0.8 : 1,
+                }]}
+              >
+                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 15, color: '#fff' }}>
+                  Confirmar Pago
+                </Text>
+              </Pressable>
             </View>
           );
         })()}

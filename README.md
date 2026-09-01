@@ -1,7 +1,7 @@
 # FinanzasApp 📱💼
 
 > [!NOTE]
-> **Versión Actual:** `v1.0.11` (Release). Incluye mejoras de consistencia cromática adaptativa (Modo Claro/Oscuro), creación rápida de categorías, transacciones de simulación diferidas, cobro de intereses en tarjetas de crédito y visualización de notas multilínea completas.
+> **Versión Actual:** `v1.0.16` (Release). Incluye gestión bancaria avanzada de Tarjetas de Crédito (Pago del Periodo corte a corte, compras a meses MSI/MCI, reversión total al eliminar transacciones, saldos a favor) y Presupuestos inteligentes con Rollover y metas de ahorro.
 
 **FinanzasApp** es una aplicación móvil premium de finanzas personales desarrollada en **React Native** utilizando **Expo**. Está diseñada para permitir a los usuarios gestionar sus ingresos, gastos, transferencias entre cuentas, presupuestos y metas de ahorro de forma local y segura, con una experiencia visual fluida, moderna y adaptada al mercado mexicano.
 
@@ -16,23 +16,30 @@
 * **Tendencia de Gastos:** Minigráfico de barras que ilustra el gasto acumulado en los últimos 7 días.
 * **Tarjetero Deslizable:** Carrusel de tarjetas bancarias configuradas, con estilos visuales que se adaptan a su marca.
 
-### 2. Gestión de Cuentas y Tarjetas 💳
+### 2. Gestión Bancaria de Cuentas y Tarjetas de Crédito 💳
 * Soporte para múltiples tipos de cuentas: *Efectivo, Banco, Tarjeta de Débito, Tarjeta de Crédito, Ahorro, Inversión y Monedero Digital*.
 * **Branding Mexicano e Internacional:** Personalización automática de colores y logotipos según el proveedor (BBVA, Nu, Banamex, Santander, HSBC, Banorte, American Express, Mercado Pago, RappiCard, Klar, etc.).
-* Detalle de cuentas con historial de transacciones específico y cálculo de saldo en tiempo real.
+* **Pago del Periodo (Corte a Corte):** Cálculo exacto que suma únicamente las compras de contado del ciclo activo más 1 parcialidad de cada compra a meses (MSI/MCI).
+* **Avance Progresivo a Meses (MSI / MCI):** Registrar el Pago del Periodo avanza las compras activas por $+1$ mensualidad (`1 de 3 pagados`), reseteando la obligación del periodo a `✅ ¡Periodo al corriente! ($0.00)` hasta la llegada del siguiente corte.
+* **Reversión Total al Eliminar Transacciones:** La eliminación de un pago registrado restaura atómicamente la deuda de la tarjeta, las cuotas pendientes (`0 de 3 pagados`) y el saldo exacto del periodo sin desajustes.
+* **Manejo de Saldo a Favor:** Identificación en verde brillante (`🟢 SALDO A FAVOR`), incrementando el crédito disponible y absorbiendo automáticamente futuros cargos o parcialidades.
+* **Detalle Interactivo de Compras a Meses:** Calendario mes a mes de cuotas (`PAGADO`, `PRÓXIMO`, `PENDIENTE`) con desglose visual de categoría, tarjeta y plazo.
 
 ### 3. Registro de Transacciones con Teclado Numérico Personalizado 🔢
 * Formulario interactivo para registrar **Ingresos**, **Gastos** y **Transferencias entre cuentas**.
 * **Teclado Virtual Pinned (Numpad):** Diseñado a medida dentro de la aplicación para una entrada de montos ágil y precisa.
 * Asignación de categorías (con iconos personalizados), notas y cuentas de origen/destino.
 
-### 4. Presupuestos Mensuales 📊
-* Permite fijar límites de gasto mensuales por categoría.
-* Monitoreo dinámico con barras de progreso de color adaptativo:
-  * 🟢 **Verde:** Gasto bajo control.
-  * 🟡 **Naranja:** Umbral de advertencia alcanzado (≥ 80%).
-  * 🔴 **Rosa/Rojo:** Presupuesto excedido (≥ 100%).
-* Cálculo automático del saldo disponible o sobregirado.
+### 4. Presupuestos Inteligentes con Rollover y Metas 📊
+* Permite fijar límites de gasto por categoría con periodos flexibles: *Semanal, Quincenal (días 1–15 / 16–30), Mensual o Días/Rangos Personalizados* mediante calendario interactivo.
+* **Anillos de Progreso SVG & Alertas Dinámicas:** Animación circular con semáforo inteligente de consumo:
+  * 🟢 **Verde (`PRESUPUESTO CONTROLADO`):** Gasto bajo control.
+  * 🟡 **Naranja (`¡PRESUPUESTO CASI AGOTADO!`):** Umbral de advertencia alcanzado ($\ge 80\%$).
+  * 🔴 **Rosa/Rojo (`¡LÍMITE EXCEDIDO!`):** Presupuesto excedido ($\ge 100\%$).
+* **Gestión de Sobrantes ("Saldo a Favor Detectado"):** Al finalizar un periodo con saldo a favor, el motor sugiere automáticamente:
+  1. **Sumar al actual (Rollover):** Acumular el ahorro como saldo extra disponible para el siguiente periodo.
+  2. **Ahorrar en Meta:** Transferir automáticamente el dinero sobrante directamente a una **Meta de Ahorro**.
+  3. **Reiniciar normal:** Comenzar el ciclo con el presupuesto base.
 
 ### 5. Metas de Ahorro 🎯
 * Definición de objetivos financieros (ej. fondo de emergencia, viajes).

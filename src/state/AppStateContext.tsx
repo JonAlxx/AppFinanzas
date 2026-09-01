@@ -4,6 +4,7 @@ import { calculateStatementBalance, materializeRecurring, upcomingPayments } fro
 import { Action, initialState, reducer } from './reducer';
 import { saveState } from './persistence';
 import { scheduleRecurringNotifications, scheduleCreditCardNotifications } from '../utils/notifications';
+import { updateWidgetData } from '../utils/widgetSync';
 
 interface AppStateContextValue {
   state: AppState;
@@ -116,6 +117,7 @@ export function AppStateProvider({
 
   useEffect(() => {
     saveState(state);
+    updateWidgetData(state);
   }, [state]);
 
   // Sync and schedule native notifications globally whenever state changes

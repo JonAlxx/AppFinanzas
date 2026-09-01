@@ -88,6 +88,148 @@ export function calculateCurrentCycleExpenses(account: Account, txs: Transaction
   return Math.max(0, cardDebt - totalRemainingInstallments);
 }
 
+export interface CardCutoffInstallmentItem {
+  tx: Transaction;
+  installmentIndex: number;
+  totalMonths: number;
+  monthlyCents: number;
+  isMci: boolean;
+  mciRate?: number;
+}
+
+export interface CardCutoffProjection {
+  account: Account;
+  cutoffDateMs: number;
+  singleExpensesCents: number;
+  singleExpensesList: Transaction[];
+  activeInstallments: CardCutoffInstallmentItem[];
+  periodObligationCents: number;
+  totalCardDebtCents: number;
+  isPastOrCurrentCutoff: boolean;
+}
+
+export function getCardCutoffProjection(
+  account: Account,
+  txs: Transaction[],
+  viewYear: number,
+  viewMonth: number
+): CardCutoffProjection | null {
+  if (account.type !== 'CREDIT_CARD') return null;
+
+  const sd = Math.min(28, Math.max(1, account.statementDay || 1));
+  const cutoffDate = new Date(viewYear, viewMonth, sd, 23, 59, 59, 999);
+  const cutoffDateMs = cutoffDate.getTime();
+
+  const prevCutoffDate = new Date(viewYear, viewMonth - 1, sd, 0, 0, 0, 0);
+  const prevCutoffDateMs = prevCutoffDate.getTime();
+
+  // Current balance & debt of the card
+  const curBal = computeAccountBalance(account, txs);
+  const actualCardDebt = curBal < 0 ? Math.abs(curBal) : 0;
+
+  // Find active installment purchases for this target cutoff date (viewYear, viewMonth)
+  const activeInstallments: CardCutoffInstallmentItem[] = [];
+  let installmentsMonthlySum = 0;
+
+  for (const t of txs) {
+    if (t.accountId !== account.id || t.type !== 'EXPENSE' || t.isEarlySettled) continue;
+    const totalMonths = t.msiMonths || t.mciMonths;
+    if (!totalMonths || totalMonths <= 0) continue;
+
+    // Calculate first cutoff year/month for transaction t
+    const txDate = new Date(t.date);
+    let firstCutoffYear = txDate.getFullYear();
+    let firstCutoffMonth = txDate.getMonth();
+
+    const sameMonthCut = new Date(firstCutoffYear, firstCutoffMonth, sd, 23, 59, 59, 999);
+    if (t.date > sameMonthCut.getTime()) {
+      firstCutoffMonth += 1;
+      if (firstCutoffMonth > 11) {
+        firstCutoffMonth = 0;
+        firstCutoffYear += 1;
+      }
+    }
+
+    // Determine 1-based installment index for viewYear, viewMonth
+    const installmentIndex = (viewYear - firstCutoffYear) * 12 + (viewMonth - firstCutoffMonth) + 1;
+
+    // If installmentIndex is within [1, totalMonths], it is active in this cutoff!
+    if (installmentIndex >= 1 && installmentIndex <= totalMonths) {
+      const monthlyCents = Math.round(t.amount / totalMonths);
+      installmentsMonthlySum += monthlyCents;
+      activeInstallments.push({
+        tx: t,
+        installmentIndex,
+        totalMonths,
+        monthlyCents,
+        isMci: !!t.mciMonths,
+        mciRate: t.mciInterestRate,
+      });
+    }
+  }
+
+  // Find single purchases made in this cutoff cycle
+  const singleExpensesList: Transaction[] = [];
+  let singleExpensesCents = 0;
+
+  for (const t of txs) {
+    if (t.accountId !== account.id || t.type !== 'EXPENSE') continue;
+    const isInstallment = (t.msiMonths && t.msiMonths > 0) || (t.mciMonths && t.mciMonths > 0);
+    if (isInstallment) continue;
+
+    // Check if single purchase date falls in this cycle (between prevCutoffDateMs and cutoffDateMs)
+    if (t.date >= prevCutoffDateMs && t.date <= cutoffDateMs) {
+      singleExpensesList.push(t);
+      singleExpensesCents += t.amount;
+    }
+  }
+
+  // Calculate total remaining installments on the card
+  let totalRemainingInstallmentsOnCard = 0;
+  for (const t of txs) {
+    if (t.accountId !== account.id || t.type !== 'EXPENSE' || t.isEarlySettled) continue;
+    const totalMonths = t.msiMonths || t.mciMonths;
+    if (!totalMonths || totalMonths <= 0) continue;
+
+    const monthlyCents = Math.round(t.amount / totalMonths);
+    const txDate = new Date(t.date);
+    let firstCutoffYear = txDate.getFullYear();
+    let firstCutoffMonth = txDate.getMonth();
+
+    const sameMonthCut = new Date(firstCutoffYear, firstCutoffMonth, sd, 23, 59, 59, 999);
+    if (t.date > sameMonthCut.getTime()) {
+      firstCutoffMonth += 1;
+      if (firstCutoffMonth > 11) {
+        firstCutoffMonth = 0;
+        firstCutoffYear += 1;
+      }
+    }
+
+    const installmentIndex = (viewYear - firstCutoffYear) * 12 + (viewMonth - firstCutoffMonth) + 1;
+    if (installmentIndex <= totalMonths) {
+      const remainingMonths = Math.max(1, totalMonths - installmentIndex + 1);
+      totalRemainingInstallmentsOnCard += Math.round(monthlyCents * remainingMonths);
+    }
+  }
+
+  // Net single purchases remaining unpaid on the card
+  const netSingleExpensesCents = Math.max(0, actualCardDebt - totalRemainingInstallmentsOnCard);
+  const grossObligation = netSingleExpensesCents + installmentsMonthlySum;
+  const periodObligationCents = curBal >= 0 ? 0 : Math.min(actualCardDebt, grossObligation);
+  const totalCardDebtCents = curBal >= 0 ? 0 : actualCardDebt;
+
+  return {
+    account,
+    cutoffDateMs,
+    singleExpensesCents: netSingleExpensesCents,
+    singleExpensesList,
+    activeInstallments,
+    periodObligationCents,
+    totalCardDebtCents,
+    isPastOrCurrentCutoff: cutoffDateMs <= Date.now(),
+  };
+}
+
 export interface Totals { total: number; income: number; expense: number }
 
 export function computeTotals(accounts: Account[], txs: Transaction[], range = 30): Totals {

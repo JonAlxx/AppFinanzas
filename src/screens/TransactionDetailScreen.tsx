@@ -99,17 +99,33 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
     const remainingCents = isSettled ? 0 : Math.max(0, totalAmount - paidCents);
     const pct = isSettled ? 100 : Math.min(100, Math.round((elapsedMonths / totalMonths) * 100));
 
-    const endDate = new Date(txDate);
-    endDate.setMonth(endDate.getMonth() + totalMonths);
-    const MONTHS_SPANISH = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    const endDateLabel = `${MONTHS_SPANISH[endDate.getMonth()]} ${endDate.getFullYear()}`;
+    const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const sdFixed = Math.min(28, Math.max(1, sd));
+
+    let firstCutoffYear = txDate.getFullYear();
+    let firstCutoffMonth = txDate.getMonth();
+
+    const sameMonthCutoff = new Date(firstCutoffYear, firstCutoffMonth, sdFixed, 23, 59, 59, 999);
+    if (tx.date > sameMonthCutoff.getTime()) {
+      firstCutoffMonth += 1;
+      if (firstCutoffMonth > 11) {
+        firstCutoffMonth = 0;
+        firstCutoffYear += 1;
+      }
+    }
+
+    const lastCutoffTotalMonths = firstCutoffMonth + (totalMonths - 1);
+    const lastCutoffYear = firstCutoffYear + Math.floor(lastCutoffTotalMonths / 12);
+    const lastCutoffMonth = lastCutoffTotalMonths % 12;
+    const endDateLabel = `${MONTHS_SHORT[lastCutoffMonth]} ${lastCutoffYear}`;
 
     // Build month-by-month schedule
     const schedule: { monthIndex: number; label: string; amount: number; isPaid: boolean; isNext: boolean }[] = [];
     for (let i = 1; i <= totalMonths; i++) {
-      let instDate = new Date(txDate);
-      instDate.setMonth(instDate.getMonth() + (i - 1));
-      const monthLabel = `${MONTHS_SPANISH[instDate.getMonth()]} ${instDate.getFullYear()}`;
+      const curTotalMonths = firstCutoffMonth + (i - 1);
+      const curYear = firstCutoffYear + Math.floor(curTotalMonths / 12);
+      const curMonth = curTotalMonths % 12;
+      const monthLabel = `${MONTHS_SHORT[curMonth]} ${curYear}`;
       
       const isPaid = i <= elapsedMonths;
       const isNext = !isPaid && i === elapsedMonths + 1;
@@ -256,19 +272,19 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
           <>
             {/* Resumen del Financiamiento */}
             <Card padding={16} style={{ marginBottom: 16, backgroundColor: softFor(t, isMci ? 'orange' : 'indigo') }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, flexShrink: 1, overflow: 'hidden' }}>
                   <Icon name="calendar" size={16} color={isMci ? t.orange : t.indigo} />
-                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text }}>
-                    Resumen del Plan ({installmentData.totalMonths} Meses)
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 13.5, color: t.text }}>
+                    Plan ({installmentData.totalMonths} Meses)
                   </Text>
                 </View>
                 <View style={{
                   paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
-                  backgroundColor: isMci ? t.orange : t.indigo,
+                  backgroundColor: isMci ? t.orange : t.indigo, flexShrink: 0,
                 }}>
                   <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 10, color: '#fff' }}>
-                    {isMci ? `${installmentData.mciInterestRate}% MCI` : 'MSI Sin Intereses'}
+                    {isMci ? `${installmentData.mciInterestRate}% MCI` : 'MSI'}
                   </Text>
                 </View>
               </View>
@@ -280,8 +296,8 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
                 gap: 8,
               }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted, flex: 1 }}>
-                    Precio Original (Sin intereses)
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted, flex: 1, flexShrink: 1 }}>
+                    Precio Original
                   </Text>
                   <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: t.text, fontVariant: ['tabular-nums'], flexShrink: 0 }}>
                     {fmtMXN(installmentData.baseAmount)}
@@ -289,18 +305,18 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
                 </View>
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted, flex: 1 }}>
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: t.textMuted, flex: 1, flexShrink: 1 }}>
                     Intereses generados
                   </Text>
                   <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 13, color: isMci ? t.orange : t.green, fontVariant: ['tabular-nums'], flexShrink: 0 }}>
-                    {isMci && installmentData.interestAmount > 0 ? `+${fmtMXN(installmentData.interestAmount)} (${installmentData.mciInterestRate}%)` : '$0.00 (0%)'}
+                    {isMci && installmentData.interestAmount > 0 ? `+${fmtMXN(installmentData.interestAmount)} (${installmentData.mciInterestRate}%)` : '$0.00'}
                   </Text>
                 </View>
 
                 <View style={{ height: 1, backgroundColor: t.border, marginVertical: 2 }} />
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text, flex: 1 }}>
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 12, color: t.text, flex: 1, flexShrink: 1 }}>
                     Precio Total a Pagar
                   </Text>
                   <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: isMci ? t.orange : t.text, fontVariant: ['tabular-nums'], flexShrink: 0 }}>
@@ -313,8 +329,8 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
               <ProgressBar pct={installmentData.pct} color={isMci ? 'orange' : 'indigo'} height={8} />
 
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 4, gap: 8 }}>
-                <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted, flex: 1 }}>
-                  {installmentData.remainingCents === 0 ? `✅ Liquidada total (${installmentData.totalMonths} de ${installmentData.totalMonths})` : (installmentData.elapsedMonths === 0 ? `0 de ${installmentData.totalMonths} pagados (Próximo 1er pago)` : `${installmentData.elapsedMonths} de ${installmentData.totalMonths} pagados`)}
+                <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.textMuted, flex: 1, flexShrink: 1 }}>
+                  {installmentData.remainingCents === 0 ? `✅ Liquidada total (${installmentData.totalMonths} de ${installmentData.totalMonths})` : (installmentData.elapsedMonths === 0 ? `Pago 0 de ${installmentData.totalMonths}` : `Pago ${installmentData.elapsedMonths} de ${installmentData.totalMonths}`)}
                 </Text>
                 <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 11, color: isMci ? t.orange : t.indigo, flexShrink: 0 }}>
                   {installmentData.pct}% completado
@@ -324,13 +340,21 @@ export function TransactionDetailScreen({ txId }: TransactionDetailScreenProps) 
 
             {/* Lista Detallada de Parcialidades Mes por Mes */}
             <Card padding={16} style={{ marginBottom: 16 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text }}>
-                  Lista de Parcialidades por Mes
-                </Text>
-                <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', fontSize: 11, color: t.indigo }}>
-                  {fmtMXN(installmentData.monthlyAmount)} / mes
-                </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8 }}>
+                <View style={{ flex: 1, flexShrink: 1, overflow: 'hidden' }}>
+                  <Text numberOfLines={1} style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 14, color: t.text }}>
+                    Parcialidades por Mes
+                  </Text>
+                </View>
+                <View style={{
+                  paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+                  backgroundColor: softFor(t, 'indigo'), borderWidth: 1, borderColor: t.indigo + '33',
+                  flexShrink: 0,
+                }}>
+                  <Text style={{ fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 11.5, color: t.indigo, fontVariant: ['tabular-nums'] }}>
+                    {fmtMXN(installmentData.monthlyAmount)}/mes
+                  </Text>
+                </View>
               </View>
 
               <View style={{ gap: 10 }}>
