@@ -159,7 +159,7 @@ export function HelpScreen() {
                 <Text style={{
                   fontFamily: 'PlusJakartaSans_500Medium', fontSize: 12, color: t.textMuted,
                   marginTop: 2,
-                }}>Versión 1.0.17 · React Native + Expo</Text>
+                }}>Versión 1.0.18 · React Native + Expo</Text>
               </View>
             </View>
             <Text style={{
