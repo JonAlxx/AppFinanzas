@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
-    android:background="#0B1120"
+    android:background="@drawable/widget_surface_dark"
     android:padding="16dp"
     android:gravity="center_vertical">
 
@@ -14,7 +14,8 @@
         android:layout_height="72dp"
         android:orientation="vertical"
         android:gravity="center"
-        android:background="#1E293B"
+        android:id="@+id/widget_goal_progress_panel"
+        android:background="@drawable/widget_panel_dark"
         android:padding="4dp"
         android:layout_marginEnd="14dp">
 

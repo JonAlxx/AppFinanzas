@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#2563EB"
+    android:background="@drawable/widget_card_blue"
     android:padding="16dp">
 
     <!-- Header Row -->

@@ -47,7 +47,11 @@ class WidgetAccountsCarouselProvider : AppWidgetProvider() {
         var type = prefs.getString("mainAccountType", "Débito") ?: "Débito"
         var masked = prefs.getString("mainAccountMasked", "**** **** **** 0000") ?: "**** **** **** 0000"
         var balance = prefs.getString("mainAccountBalance", "$0.00") ?: "$0.00"
-        var counterText = "1/1"
+        var icon = "💳"
+        var balanceLabel = "SALDO"
+        var network = ""
+        var color = "indigo"
+        var counterText = "1 / 1"
 
         try {
             val jsonArray = org.json.JSONArray(jsonStr)
@@ -58,8 +62,12 @@ class WidgetAccountsCarouselProvider : AppWidgetProvider() {
                 name = obj.optString("title", name)
                 masked = obj.optString("subtitle", masked)
                 balance = obj.optString("value", balance)
-                type = if (masked.contains("Crédito")) "Crédito" else "Débito"
-                counterText = "${idx + 1}/$total"
+                type = obj.optString("type", type).uppercase()
+                icon = obj.optString("icon", icon)
+                balanceLabel = obj.optString("balanceLabel", balanceLabel)
+                network = obj.optString("network", network)
+                color = obj.optString("color", color)
+                counterText = "${idx + 1} / $total"
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -67,8 +75,12 @@ class WidgetAccountsCarouselProvider : AppWidgetProvider() {
 
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_accounts_carousel_layout)
+            views.setInt(R.id.widget_accounts_container, "setBackgroundResource", WidgetTheme.cardBackground(color))
             views.setTextViewText(R.id.widget_account_name, name)
             views.setTextViewText(R.id.widget_account_type, type)
+            views.setTextViewText(R.id.widget_account_icon, icon)
+            views.setTextViewText(R.id.widget_account_balance_label, balanceLabel)
+            views.setTextViewText(R.id.widget_account_network, network)
             views.setTextViewText(R.id.widget_card_number, masked)
             views.setTextViewText(R.id.widget_account_balance, balance)
             views.setTextViewText(R.id.widget_card_counter, counterText)
@@ -81,7 +93,7 @@ class WidgetAccountsCarouselProvider : AppWidgetProvider() {
                 context,
                 302,
                 prevIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.widget_btn_prev_card, pendingPrev)
 
@@ -93,7 +105,7 @@ class WidgetAccountsCarouselProvider : AppWidgetProvider() {
                 context,
                 301,
                 nextIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.widget_btn_next_card, pendingNext)
 

@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#0B1120"
+    android:background="@drawable/widget_surface_dark"
     android:padding="14dp">
 
     <!-- Row 1 -->
@@ -17,7 +17,8 @@
         <TextView
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:background="#1E293B"
+            android:id="@+id/widget_recent_icon_panel"
+            android:background="@drawable/widget_panel_dark"
             android:text="💳"
             android:textSize="14sp"
             android:gravity="center"
@@ -37,6 +38,9 @@
                 android:textColor="#F8FAFC"
                 android:textSize="12sp"
                 android:textStyle="bold" />
+            <TextView android:id="@+id/widget_recent_tx1_meta" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="" android:textColor="#94A3B8"
+                android:textSize="9sp" android:layout_marginTop="2dp" />
         </LinearLayout>
 
         <TextView
@@ -70,6 +74,9 @@
                 android:text=""
                 android:textColor="#94A3B8"
                 android:textSize="12sp" />
+            <TextView android:id="@+id/widget_recent_tx2_meta" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="" android:textColor="#64748B"
+                android:textSize="9sp" android:layout_marginTop="2dp" />
         </LinearLayout>
 
         <TextView

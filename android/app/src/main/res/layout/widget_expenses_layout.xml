@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#0B1120"
+    android:background="@drawable/widget_surface_dark"
     android:padding="14dp">
 
     <!-- Header Row -->
@@ -16,6 +16,7 @@
         android:layout_marginBottom="10dp">
 
         <TextView
+            android:id="@+id/widget_expenses_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -47,11 +48,13 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:background="#1E293B"
+            android:id="@+id/widget_today_panel"
+            android:background="@drawable/widget_panel_dark"
             android:padding="10dp"
             android:layout_marginEnd="6dp">
 
             <TextView
+                android:id="@+id/widget_today_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="GASTADO HOY"
@@ -76,11 +79,13 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:background="#1E293B"
+            android:id="@+id/widget_week_panel"
+            android:background="@drawable/widget_panel_dark"
             android:padding="10dp"
             android:layout_marginStart="6dp">
 
             <TextView
+                android:id="@+id/widget_week_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="GASTADO SEMANAL"

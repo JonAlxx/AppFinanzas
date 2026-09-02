@@ -403,7 +403,8 @@ export function upcomingPayments(rules: Recurring[], days = 60, limit = 20): Upc
   for (const r of rules) {
     if (!r.active) continue;
     if (r.frequency === 'once' && r.lastGenerated) continue;
-    const from = r.lastGenerated ? startOfDay(r.lastGenerated) + 86400000 : startOfDay(r.startDate);
+    const afterLastGenerated = r.lastGenerated ? startOfDay(r.lastGenerated) + 86400000 : startOfDay(r.startDate);
+    const from = Math.max(today, afterLastGenerated);
     const due = dueDatesBetween(r, from, horizon);
     for (const d of due) all.push({ rule: r, date: d });
   }

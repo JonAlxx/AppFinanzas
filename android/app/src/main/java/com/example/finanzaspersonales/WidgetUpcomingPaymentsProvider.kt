@@ -9,8 +9,20 @@ import android.widget.RemoteViews
 
 class WidgetUpcomingPaymentsProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        val prefs = context.getSharedPreferences("FinanzasWidgetPrefs", Context.MODE_PRIVATE)
+        val palette = WidgetTheme.palette(prefs)
+        val payment1 = prefs.getString("paymentLine1", "Sin pagos próximos") ?: "Sin pagos próximos"
+        val payment2 = prefs.getString("paymentLine2", "") ?: ""
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_upcoming_payments_layout)
+            WidgetTheme.surface(views, R.id.widget_upcoming_container, palette)
+            WidgetTheme.panel(views, R.id.widget_upcoming_payment1, palette)
+            WidgetTheme.panel(views, R.id.widget_upcoming_payment2, palette)
+            views.setTextViewText(R.id.widget_upcoming_payment1, payment1)
+            views.setTextViewText(R.id.widget_upcoming_payment2, payment2)
+            views.setTextColor(R.id.widget_upcoming_title, palette.text)
+            views.setTextColor(R.id.widget_upcoming_payment1, palette.text)
+            views.setTextColor(R.id.widget_upcoming_payment2, palette.muted)
 
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

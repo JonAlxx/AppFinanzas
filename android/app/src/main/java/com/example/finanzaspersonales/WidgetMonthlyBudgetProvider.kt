@@ -14,19 +14,32 @@ class WidgetMonthlyBudgetProvider : AppWidgetProvider() {
         val daysLeft = prefs.getString("budgetDaysLeft", "12 días restantes") ?: "12 días restantes"
         val line1 = prefs.getString("budgetLine1", "Sin presupuesto definido") ?: "Sin presupuesto definido"
         val line2 = prefs.getString("budgetLine2", "") ?: ""
+        var progress1 = 0
+        var progress2 = 0
+        try {
+            val budgets = org.json.JSONArray(prefs.getString("budgetsJson", "[]"))
+            if (budgets.length() > 0) progress1 = budgets.getJSONObject(0).optString("value", "0").filter { it.isDigit() }.toIntOrNull() ?: 0
+            if (budgets.length() > 1) progress2 = budgets.getJSONObject(1).optString("value", "0").filter { it.isDigit() }.toIntOrNull() ?: 0
+        } catch (_: Exception) { }
 
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_monthly_budget_layout)
             views.setTextViewText(R.id.widget_budget_days_left, daysLeft)
             views.setTextViewText(R.id.widget_budget_comida_text, line1)
             views.setTextViewText(R.id.widget_budget_transporte_text, line2)
+            views.setProgressBar(R.id.widget_budget_progress1, 100, progress1.coerceIn(0, 100), false)
+            views.setProgressBar(R.id.widget_budget_progress2, 100, progress2.coerceIn(0, 100), false)
+            val palette = WidgetTheme.palette(prefs)
+            WidgetTheme.surface(views, R.id.widget_budget_container, palette)
+            WidgetTheme.panel(views, R.id.widget_budget_icon1, palette)
+            WidgetTheme.panel(views, R.id.widget_budget_icon2, palette)
+            views.setTextColor(R.id.widget_budget_title, palette.text)
+            views.setTextColor(R.id.widget_budget_days_left, palette.accent)
 
             if (!isDark) {
-                views.setInt(R.id.widget_budget_container, "setBackgroundColor", android.graphics.Color.parseColor("#FFFFFF"))
                 views.setTextColor(R.id.widget_budget_comida_text, android.graphics.Color.parseColor("#0F172A"))
                 views.setTextColor(R.id.widget_budget_transporte_text, android.graphics.Color.parseColor("#475569"))
             } else {
-                views.setInt(R.id.widget_budget_container, "setBackgroundColor", android.graphics.Color.parseColor("#0B1120"))
                 views.setTextColor(R.id.widget_budget_comida_text, android.graphics.Color.parseColor("#F8FAFC"))
                 views.setTextColor(R.id.widget_budget_transporte_text, android.graphics.Color.parseColor("#94A3B8"))
             }

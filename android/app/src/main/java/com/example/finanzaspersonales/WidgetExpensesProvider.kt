@@ -16,14 +16,21 @@ class WidgetExpensesProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         val prefs = context.getSharedPreferences("FinanzasWidgetPrefs", Context.MODE_PRIVATE)
+        val palette = WidgetTheme.palette(prefs)
         val todayText = prefs.getString("todayText", "$0.00") ?: "$0.00"
         val weeklyText = prefs.getString("weeklyText", "$0.00") ?: "$0.00"
 
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_expenses_layout)
+            WidgetTheme.surface(views, R.id.widget_expenses_container, palette)
+            WidgetTheme.panel(views, R.id.widget_today_panel, palette)
+            WidgetTheme.panel(views, R.id.widget_week_panel, palette)
 
             views.setTextViewText(R.id.widget_today_text, todayText)
             views.setTextViewText(R.id.widget_weekly_text, weeklyText)
+            views.setTextColor(R.id.widget_expenses_title, palette.text)
+            views.setTextColor(R.id.widget_today_label, palette.muted)
+            views.setTextColor(R.id.widget_week_label, palette.muted)
 
             // Intent for main container tap
             val intent = Intent(context, MainActivity::class.java).apply {

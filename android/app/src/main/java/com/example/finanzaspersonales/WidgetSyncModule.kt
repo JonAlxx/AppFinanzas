@@ -50,13 +50,14 @@ class WidgetSyncModule(reactContext: ReactApplicationContext) : ReactContextBase
     @ReactMethod
     fun updateFullWidgetDataWithLists(
         themeMode: String,
-        availableText: String, cutoffText: String, todayText: String, weeklyText: String,
+        availableText: String, availableVariation: String, cutoffText: String, todayText: String, weeklyText: String,
         mainAccountName: String, mainAccountType: String, mainAccountMasked: String, mainAccountBalance: String,
         budgetDaysLeft: String, budgetLine1: String, budgetLine2: String,
         goalName: String, goalAmount: String, goalPercentage: String, goalDate: String,
-        catLine1: String, catLine2: String,
+        categoryTotal: String, catLine1: String, catLine2: String,
         paymentLine1: String, paymentLine2: String,
-        recentTx1Name: String, recentTx1Val: String, recentTx2Name: String, recentTx2Val: String,
+        recentTx1Name: String, recentTx1Val: String, recentTx1Meta: String,
+        recentTx2Name: String, recentTx2Val: String, recentTx2Meta: String,
         accountsJson: String, recentTxsJson: String, budgetsJson: String, paymentsJson: String
     ) {
         val context = reactApplicationContext
@@ -65,6 +66,7 @@ class WidgetSyncModule(reactContext: ReactApplicationContext) : ReactContextBase
         prefs.edit()
             .putString("themeMode", themeMode)
             .putString("availableText", availableText)
+            .putString("availableVariation", availableVariation)
             .putString("cutoffText", cutoffText)
             .putString("todayText", todayText)
             .putString("weeklyText", weeklyText)
@@ -79,14 +81,17 @@ class WidgetSyncModule(reactContext: ReactApplicationContext) : ReactContextBase
             .putString("goalAmount", goalAmount)
             .putString("goalPercentage", goalPercentage)
             .putString("goalDate", goalDate)
+            .putString("categoryTotal", categoryTotal)
             .putString("catLine1", catLine1)
             .putString("catLine2", catLine2)
             .putString("paymentLine1", paymentLine1)
             .putString("paymentLine2", paymentLine2)
             .putString("recentTx1Name", recentTx1Name)
             .putString("recentTx1Val", recentTx1Val)
+            .putString("recentTx1Meta", recentTx1Meta)
             .putString("recentTx2Name", recentTx2Name)
             .putString("recentTx2Val", recentTx2Val)
+            .putString("recentTx2Meta", recentTx2Meta)
             .putString("accountsJson", accountsJson)
             .putString("recentTxsJson", recentTxsJson)
             .putString("budgetsJson", budgetsJson)

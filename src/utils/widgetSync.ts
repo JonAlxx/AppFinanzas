@@ -1,7 +1,7 @@
 import { NativeModules } from 'react-native';
 import { AppState } from '../data/types';
-import { computeAccountBalance, getCardCutoffProjection, spentByCategory, upcomingPayments } from '../data/selectors';
-import { catById } from '../data/catalog';
+import { computeAccountBalance, getCardCutoffProjection, upcomingPayments } from '../data/selectors';
+import { catById, labelType } from '../data/catalog';
 
 export function updateWidgetData(state: AppState) {
   try {
@@ -10,13 +10,29 @@ export function updateWidgetData(state: AppState) {
 
     // 1. Saldo Total (Available Balance)
     let netAvailableCents = 0;
+    let previousMonthBalanceCents = 0;
+    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
     for (const a of state.accounts) {
       if (a.type !== 'CREDIT_CARD') {
         netAvailableCents += computeAccountBalance(a, state.transactions);
+        let historicalBalance = a.initial;
+        for (const tx of state.transactions) {
+          if (tx.date > previousMonthEnd) continue;
+          if (tx.type === 'INCOME' && tx.accountId === a.id) historicalBalance += tx.amount;
+          if (tx.type === 'EXPENSE' && tx.accountId === a.id) historicalBalance -= tx.amount;
+          if (tx.type === 'TRANSFER') {
+            if (tx.accountId === a.id) historicalBalance -= tx.amount;
+            if (tx.destinationAccountId === a.id) historicalBalance += tx.amount;
+          }
+        }
+        previousMonthBalanceCents += historicalBalance;
       }
     }
     netAvailableCents = Math.max(0, netAvailableCents);
     const availableStr = `$${(netAvailableCents / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const monthlyDelta = netAvailableCents - previousMonthBalanceCents;
+    const monthlyPct = previousMonthBalanceCents !== 0 ? Math.abs((monthlyDelta / previousMonthBalanceCents) * 100) : 0;
+    const availableVariation = `${monthlyDelta >= 0 ? '▲' : '▼'} ${monthlyDelta >= 0 ? '+' : '-'}$${(Math.abs(monthlyDelta) / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${monthlyPct.toFixed(1)}%)`;
 
     // 2. Primary Account (Carrusel)
     const primaryAccount = state.accounts[0];
@@ -34,7 +50,12 @@ export function updateWidgetData(state: AppState) {
 
     const activeBudgets = state.budgets.map(b => {
       const cat = catById(b.categoryId, state.customCategories);
-      const spent = spentByCategory(state.transactions, b.categoryId, 30);
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      const spent = state.transactions.reduce((sum, tx) => (
+        tx.type === 'EXPENSE' && tx.categoryId === b.categoryId && tx.date >= monthStart && tx.date <= now.getTime()
+          ? sum + Math.abs(tx.amount)
+          : sum
+      ), 0);
       const pct = b.limit > 0 ? Math.round((spent / b.limit) * 100) : 0;
       return {
         name: cat ? cat.name : 'General',
@@ -63,8 +84,9 @@ export function updateWidgetData(state: AppState) {
     const catMap = new Map<string, number>();
     let totalExpensesThisMonth = 0;
 
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     for (const tx of state.transactions) {
-      if (tx.type === 'EXPENSE') {
+      if (tx.type === 'EXPENSE' && tx.date >= monthStart && tx.date <= now.getTime()) {
         const val = Math.abs(tx.amount);
         totalExpensesThisMonth += val;
         const cId = tx.categoryId || 'other';
@@ -84,6 +106,7 @@ export function updateWidgetData(state: AppState) {
 
     const catLine1 = topCat1 ? `${catObj1?.name || 'General'} (${catPct1}%): $${(topCat1[1] / 100).toFixed(2)}` : 'Sin gastos registrados';
     const catLine2 = topCat2 ? `${catObj2?.name || 'General'} (${catPct2}%): $${(topCat2[1] / 100).toFixed(2)}` : '';
+    const categoryTotal = `$${(totalExpensesThisMonth / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     // 6. Pagos y Recordatorios (Fechas Futuras Dinámicas a partir de HOY)
     const upcoming = upcomingPayments(state.recurring || [], 30, 2);
@@ -104,23 +127,25 @@ export function updateWidgetData(state: AppState) {
     const recentTx1Val = tx1 ? `${tx1.type === 'INCOME' ? '+' : '-'}$${(Math.abs(tx1.amount) / 100).toFixed(2)}` : '$0.00';
     const recentTx2Name = tx2 ? (tx2.note || 'Transacción') : '';
     const recentTx2Val = tx2 ? `${tx2.type === 'INCOME' ? '+' : '-'}$${(Math.abs(tx2.amount) / 100).toFixed(2)}` : '';
+    const recentMeta = (date?: number) => date
+      ? new Date(date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : '';
+    const recentTx1Meta = recentMeta(tx1?.date);
+    const recentTx2Meta = recentMeta(tx2?.date);
 
     // 8. Gastos Hoy & Semanal
-    const todayStrDate = now.toISOString().split('T')[0];
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).getTime();
 
     let todayExpensesCents = 0;
     let weeklyExpensesCents = 0;
 
     for (const tx of state.transactions) {
       if (tx.type === 'EXPENSE') {
-        const txDateObj = new Date(tx.date);
-        const txDateStr = txDateObj.toISOString().split('T')[0];
-
-        if (txDateStr === todayStrDate) {
+        if (tx.date >= todayStart && tx.date <= now.getTime()) {
           todayExpensesCents += Math.abs(tx.amount);
         }
-        if (txDateObj >= sevenDaysAgo && txDateObj <= now) {
+        if (tx.date >= weekStart && tx.date <= now.getTime()) {
           weeklyExpensesCents += Math.abs(tx.amount);
         }
       }
@@ -142,13 +167,21 @@ export function updateWidgetData(state: AppState) {
     const cutoffStr = `$${(totalCutoffObligationCents / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     // Full JSON lists for scrollable widgets
-    const accountsJson = JSON.stringify(state.accounts.map(a => ({
+    const accountsJson = JSON.stringify(state.accounts.map(a => {
+      const rawBalance = computeAccountBalance(a, state.transactions);
+      const displayBalance = a.type === 'CREDIT_CARD' && a.limit ? Math.max(0, a.limit + rawBalance) : rawBalance;
+      return {
       title: a.name,
       subtitle: a.last4 ? `**** **** **** ${a.last4}` : (a.type === 'CREDIT_CARD' ? 'Tarjeta Crédito' : 'Cuenta Débito'),
-      value: `$${(computeAccountBalance(a, state.transactions) / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+      value: `$${(displayBalance / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       icon: a.type === 'CREDIT_CARD' ? '💳' : (a.type === 'CASH' ? '💵' : '🏦'),
-      isPositive: 'true'
-    })));
+      isPositive: 'true',
+      type: labelType(a.type),
+      balanceLabel: a.type === 'CREDIT_CARD' ? 'DISPONIBLE' : 'SALDO',
+      color: a.customBrandColor || a.color || 'indigo',
+      network: (a.network || '').toUpperCase(),
+    };
+    }));
 
     const recentTxsJson = JSON.stringify(sortedTxs.slice(0, 20).map(tx => {
       const cat = catById(tx.categoryId || '', state.customCategories);
@@ -186,13 +219,13 @@ export function updateWidgetData(state: AppState) {
       if (NativeModules.WidgetSyncModule.updateFullWidgetDataWithLists) {
         NativeModules.WidgetSyncModule.updateFullWidgetDataWithLists(
           themeMode,
-          availableStr, cutoffStr, todayStr, weeklyStr,
+          availableStr, availableVariation, cutoffStr, todayStr, weeklyStr,
           mainAccountName, mainAccountType, mainAccountMasked, mainAccountBalance,
           budgetDaysLeft, budgetLine1, budgetLine2,
           goalName, goalAmount, goalPercentage, goalDate,
-          catLine1, catLine2,
+          categoryTotal, catLine1, catLine2,
           paymentLine1, paymentLine2,
-          recentTx1Name, recentTx1Val, recentTx2Name, recentTx2Val,
+          recentTx1Name, recentTx1Val, recentTx1Meta, recentTx2Name, recentTx2Val, recentTx2Meta,
           accountsJson, recentTxsJson, budgetsJson, paymentsJson
         );
       } else {

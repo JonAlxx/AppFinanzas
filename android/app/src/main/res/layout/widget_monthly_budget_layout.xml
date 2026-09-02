@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#0B1120"
+    android:background="@drawable/widget_surface_dark"
     android:padding="14dp">
 
     <!-- Header Row -->
@@ -16,6 +16,7 @@
         android:layout_marginBottom="10dp">
 
         <TextView
+            android:id="@+id/widget_budget_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -42,9 +43,10 @@
         android:gravity="center_vertical">
 
         <TextView
+            android:id="@+id/widget_budget_icon1"
             android:layout_width="30dp"
             android:layout_height="30dp"
-            android:background="#1E293B"
+            android:background="@drawable/widget_panel_dark"
             android:text="🍴"
             android:textSize="13sp"
             android:gravity="center"
@@ -69,6 +71,10 @@
                     android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
+            <ProgressBar android:id="@+id/widget_budget_progress1" style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="5dp"
+                android:max="100" android:progress="0" android:progressTint="#818CF8"
+                android:progressBackgroundTint="#26304E" />
         </LinearLayout>
     </LinearLayout>
 
@@ -81,9 +87,10 @@
         android:layout_marginTop="8dp">
 
         <TextView
+            android:id="@+id/widget_budget_icon2"
             android:layout_width="30dp"
             android:layout_height="30dp"
-            android:background="#1E293B"
+            android:background="@drawable/widget_panel_dark"
             android:text="🚌"
             android:textSize="13sp"
             android:gravity="center"
@@ -107,6 +114,10 @@
                     android:textColor="#94A3B8"
                     android:textSize="11sp" />
             </LinearLayout>
+            <ProgressBar android:id="@+id/widget_budget_progress2" style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="5dp"
+                android:max="100" android:progress="0" android:progressTint="#10B981"
+                android:progressBackgroundTint="#26304E" />
         </LinearLayout>
     </LinearLayout>
 
