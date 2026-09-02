@@ -4,66 +4,169 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#0B1120"
+    android:background="#FFFFFF"
     android:padding="14dp">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Gastos por categoría"
-        android:textColor="#F8FAFC"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <TextView
-            android:id="@+id/widget_cat_comida_pct"
+        <!-- Donut Total Circle -->
+        <LinearLayout
+            android:layout_width="90dp"
+            android:layout_height="90dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="#F8FAFC"
+            android:layout_marginEnd="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Total"
+                android:textColor="#64748B"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/widget_cat_total_val"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="$12,680.50"
+                android:textColor="#0F172A"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginTop="2dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MXN"
+                android:textColor="#94A3B8"
+                android:textSize="9sp" />
+        </LinearLayout>
+
+        <!-- Category Legend List -->
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🟢 Comida (34%)"
-            android:textColor="#E2E8F0"
-            android:textSize="10sp" />
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/widget_cat_comida_val"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="$4,311.40"
-            android:textColor="#FFFFFF"
-            android:textSize="11sp"
-            android:textStyle="bold" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <TextView
+                    android:id="@+id/widget_cat_comida_pct"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="🟢 Comida"
+                    android:textColor="#0F172A"
+                    android:textSize="11sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="34%"
+                    android:textColor="#64748B"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="8dp" />
+                <TextView
+                    android:id="@+id/widget_cat_comida_val"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="$4,311.40"
+                    android:textColor="#0F172A"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="4dp">
+                <TextView
+                    android:id="@+id/widget_cat_transporte_pct"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="🟠 Transporte"
+                    android:textColor="#0F172A"
+                    android:textSize="11sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="22%"
+                    android:textColor="#64748B"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="8dp" />
+                <TextView
+                    android:id="@+id/widget_cat_transporte_val"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="$2,789.60"
+                    android:textColor="#0F172A"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="4dp">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="🔵 Servicios"
+                    android:textColor="#0F172A"
+                    android:textSize="11sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="18%"
+                    android:textColor="#64748B"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="8dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="$2,281.40"
+                    android:textColor="#0F172A"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 
+    <!-- Footer Link -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginTop="6dp">
+        android:layout_marginTop="8dp">
 
         <TextView
-            android:id="@+id/widget_cat_transporte_pct"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🟠 Transporte (22%)"
-            android:textColor="#E2E8F0"
-            android:textSize="10sp" />
+            android:text="Ver reporte completo"
+            android:textColor="#2563EB"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/widget_cat_transporte_val"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="$2,789.60"
-            android:textColor="#FFFFFF"
-            android:textSize="11sp"
+            android:text="›"
+            android:textColor="#2563EB"
+            android:textSize="14sp"
             android:textStyle="bold" />
     </LinearLayout>
 </LinearLayout>

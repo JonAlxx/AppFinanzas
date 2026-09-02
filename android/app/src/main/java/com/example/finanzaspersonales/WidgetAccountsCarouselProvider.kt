@@ -10,11 +10,17 @@ import android.widget.RemoteViews
 class WidgetAccountsCarouselProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         val prefs = context.getSharedPreferences("FinanzasWidgetPrefs", Context.MODE_PRIVATE)
-        val availableText = prefs.getString("availableText", "$0.00") ?: "$0.00"
+        val name = prefs.getString("mainAccountName", "Cuenta Principal") ?: "Cuenta Principal"
+        val type = prefs.getString("mainAccountType", "Débito") ?: "Débito"
+        val masked = prefs.getString("mainAccountMasked", "**** **** **** 4532") ?: "**** **** **** 4532"
+        val balance = prefs.getString("mainAccountBalance", "$0.00") ?: "$0.00"
 
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_accounts_carousel_layout)
-            views.setTextViewText(R.id.widget_account_balance, availableText)
+            views.setTextViewText(R.id.widget_account_name, name)
+            views.setTextViewText(R.id.widget_account_type, type)
+            views.setTextViewText(R.id.widget_card_number, masked)
+            views.setTextViewText(R.id.widget_account_balance, balance)
 
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

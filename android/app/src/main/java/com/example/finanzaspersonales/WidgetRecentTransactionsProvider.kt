@@ -9,6 +9,12 @@ import android.widget.RemoteViews
 
 class WidgetRecentTransactionsProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        val prefs = context.getSharedPreferences("FinanzasWidgetPrefs", Context.MODE_PRIVATE)
+        val name1 = prefs.getString("recentTx1Name", "Soriana Híper") ?: "Soriana Híper"
+        val val1 = prefs.getString("recentTx1Val", "-$523.40") ?: "-$523.40"
+        val name2 = prefs.getString("recentTx2Name", "Transferencia recibida") ?: "Transferencia recibida"
+        val val2 = prefs.getString("recentTx2Val", "+$3,250.00") ?: "+$3,250.00"
+
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_recent_transactions_layout)
 
