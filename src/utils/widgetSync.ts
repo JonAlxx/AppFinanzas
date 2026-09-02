@@ -26,10 +26,11 @@ export function updateWidgetData(state: AppState) {
     const mainAccountBalanceVal = primaryAccount ? computeAccountBalance(primaryAccount, state.transactions) : 0;
     const mainAccountBalance = `$${(mainAccountBalanceVal / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-    // 3. Presupuesto Mensual
+    // 3. Presupuesto Mensual (Mes actual dinámico)
+    const currentMonthName = now.toLocaleDateString('es-MX', { month: 'long' });
     const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const daysLeft = Math.max(0, lastDayOfMonth - now.getDate());
-    const budgetDaysLeft = `${daysLeft} días restantes`;
+    const budgetDaysLeft = `${daysLeft} días restantes (${currentMonthName})`;
 
     const activeBudgets = state.budgets.map(b => {
       const cat = catById(b.categoryId, state.customCategories);
@@ -84,12 +85,16 @@ export function updateWidgetData(state: AppState) {
     const catLine1 = topCat1 ? `${catObj1?.name || 'General'} (${catPct1}%): $${(topCat1[1] / 100).toFixed(2)}` : 'Sin gastos registrados';
     const catLine2 = topCat2 ? `${catObj2?.name || 'General'} (${catPct2}%): $${(topCat2[1] / 100).toFixed(2)}` : '';
 
-    // 6. Pagos y Recordatorios
+    // 6. Pagos y Recordatorios (Fechas Futuras Dinámicas a partir de HOY)
     const upcoming = upcomingPayments(state.recurring || [], 30, 2);
     const p1 = upcoming[0];
     const p2 = upcoming[1];
-    const paymentLine1 = p1 ? `${p1.rule.note || 'Pago'}: -$${(p1.rule.amount / 100).toFixed(2)}` : 'Sin pagos próximos';
-    const paymentLine2 = p2 ? `${p2.rule.note || 'Pago'}: -$${(p2.rule.amount / 100).toFixed(2)}` : '';
+    const p1DateObj = p1 ? new Date(p1.date) : null;
+    const p2DateObj = p2 ? new Date(p2.date) : null;
+    const p1DateStr = p1DateObj ? `${p1DateObj.getDate()} ${p1DateObj.toLocaleDateString('es-MX', { month: 'short' })}` : '';
+    const p2DateStr = p2DateObj ? `${p2DateObj.getDate()} ${p2DateObj.toLocaleDateString('es-MX', { month: 'short' })}` : '';
+    const paymentLine1 = p1 ? `${p1DateStr} · ${p1.rule.note || 'Pago'}: -$${(p1.rule.amount / 100).toFixed(2)}` : 'Sin pagos próximos';
+    const paymentLine2 = p2 ? `${p2DateStr} · ${p2.rule.note || 'Pago'}: -$${(p2.rule.amount / 100).toFixed(2)}` : '';
 
     // 7. Movimientos Recientes
     const sortedTxs = [...state.transactions].sort((a, b) => b.date - a.date);

@@ -52,6 +52,8 @@
         android:exported="true">
       <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="com.example.finanzaspersonales.ACTION_NEXT_CARD" />
+        <action android:name="com.example.finanzaspersonales.ACTION_PREV_CARD" />
       </intent-filter>
       <meta-data
           android:name="android.appwidget.provider"

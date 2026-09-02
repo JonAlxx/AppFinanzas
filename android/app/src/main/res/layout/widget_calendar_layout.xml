@@ -8,6 +8,7 @@
     android:padding="14dp">
 
     <TextView
+        android:id="@+id/widget_calendar_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="📅 Calendario de Pagos"
@@ -17,16 +18,18 @@
         android:layout_marginBottom="8dp" />
 
     <TextView
+        android:id="@+id/widget_calendar_event1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="● 25 may — Netflix ($149.00)"
+        android:text="Cargando eventos..."
         android:textColor="#818CF8"
         android:textSize="11sp" />
 
     <TextView
+        android:id="@+id/widget_calendar_event2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="● 01 jun — Renta ($8,500.00)"
+        android:text=""
         android:textColor="#F43F5E"
         android:textSize="11sp"
         android:layout_marginTop="4dp" />
