@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#FFFFFF"
+    android:background="#0B1120"
     android:padding="14dp">
 
     <LinearLayout
@@ -20,22 +20,22 @@
             android:layout_height="90dp"
             android:orientation="vertical"
             android:gravity="center"
-            android:background="#F8FAFC"
+            android:background="#1E293B"
             android:layout_marginEnd="12dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Total"
-                android:textColor="#64748B"
+                android:textColor="#94A3B8"
                 android:textSize="10sp" />
 
             <TextView
                 android:id="@+id/widget_cat_total_val"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="$12,680.50"
-                android:textColor="#0F172A"
+                android:text="$0.00"
+                android:textColor="#F8FAFC"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:layout_marginTop="2dp" />
@@ -44,7 +44,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="MXN"
-                android:textColor="#94A3B8"
+                android:textColor="#64748B"
                 android:textSize="9sp" />
         </LinearLayout>
 
@@ -61,27 +61,11 @@
                 android:orientation="horizontal">
                 <TextView
                     android:id="@+id/widget_cat_comida_pct"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="🟢 Comida"
-                    android:textColor="#0F172A"
+                    android:text="Sin gastos registrados"
+                    android:textColor="#F8FAFC"
                     android:textSize="11sp" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="34%"
-                    android:textColor="#64748B"
-                    android:textSize="11sp"
-                    android:layout_marginEnd="8dp" />
-                <TextView
-                    android:id="@+id/widget_cat_comida_val"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="$4,311.40"
-                    android:textColor="#0F172A"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
             </LinearLayout>
 
             <LinearLayout
@@ -91,55 +75,11 @@
                 android:layout_marginTop="4dp">
                 <TextView
                     android:id="@+id/widget_cat_transporte_pct"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="🟠 Transporte"
-                    android:textColor="#0F172A"
+                    android:text=""
+                    android:textColor="#94A3B8"
                     android:textSize="11sp" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="22%"
-                    android:textColor="#64748B"
-                    android:textSize="11sp"
-                    android:layout_marginEnd="8dp" />
-                <TextView
-                    android:id="@+id/widget_cat_transporte_val"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="$2,789.60"
-                    android:textColor="#0F172A"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="4dp">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="🔵 Servicios"
-                    android:textColor="#0F172A"
-                    android:textSize="11sp" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="18%"
-                    android:textColor="#64748B"
-                    android:textSize="11sp"
-                    android:layout_marginEnd="8dp" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="$2,281.40"
-                    android:textColor="#0F172A"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
@@ -157,7 +97,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Ver reporte completo"
-            android:textColor="#2563EB"
+            android:textColor="#818CF8"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -165,7 +105,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="›"
-            android:textColor="#2563EB"
+            android:textColor="#818CF8"
             android:textSize="14sp"
             android:textStyle="bold" />
     </LinearLayout>
