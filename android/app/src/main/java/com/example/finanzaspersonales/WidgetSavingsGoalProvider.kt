@@ -22,7 +22,7 @@ class WidgetSavingsGoalProvider : AppWidgetProvider() {
             WidgetTheme.surface(views, R.id.widget_savings_goal_container, palette)
             WidgetTheme.panel(views, R.id.widget_goal_progress_panel, palette)
             views.setTextViewText(R.id.widget_goal_name, name)
-            views.setTextViewText(R.id.widget_goal_amount, amount)
+            views.setTextViewText(R.id.widget_goal_amount, WidgetTheme.maskIf(balanceHidden, amount))
             views.setTextViewText(R.id.widget_goal_percentage, pct)
             views.setTextViewText(R.id.widget_goal_date, date)
             views.setTextColor(R.id.widget_goal_name, palette.text)

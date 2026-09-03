@@ -25,8 +25,8 @@ class WidgetMonthlyBudgetProvider : AppWidgetProvider() {
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_monthly_budget_layout)
             views.setTextViewText(R.id.widget_budget_days_left, daysLeft)
-            views.setTextViewText(R.id.widget_budget_comida_text, line1)
-            views.setTextViewText(R.id.widget_budget_transporte_text, line2)
+            views.setTextViewText(R.id.widget_budget_comida_text, WidgetTheme.maskIf(balanceHidden, line1))
+            views.setTextViewText(R.id.widget_budget_transporte_text, WidgetTheme.maskIf(balanceHidden, line2))
             views.setProgressBar(R.id.widget_budget_progress1, 100, progress1.coerceIn(0, 100), false)
             views.setProgressBar(R.id.widget_budget_progress2, 100, progress2.coerceIn(0, 100), false)
             val palette = WidgetTheme.palette(prefs)

@@ -155,5 +155,14 @@
         android:name=".WidgetListService"
         android:permission="android.permission.BIND_REMOTEVIEWS"
         android:exported="false" />
+
+    <!-- Control_Ojo: alterna balanceHidden localmente sin abrir MainActivity -->
+    <receiver
+        android:name=".WidgetEyeToggleReceiver"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="com.example.finanzaspersonales.ACTION_TOGGLE_EYE" />
+      </intent-filter>
+    </receiver>
   </application>
 </manifest>

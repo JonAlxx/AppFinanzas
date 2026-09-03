@@ -71,4 +71,25 @@ object WidgetTheme {
     fun tintImage(views: RemoteViews, imageViewId: Int, color: Int) {
         views.setInt(imageViewId, "setColorFilter", color)
     }
+
+    // Coincide con montos monetarios (con o sin signo, separador de miles y decimales),
+    // preservando explícitamente los porcentajes (un porcentaje no es un Monto_Sensible).
+    private val AMOUNT_TOKEN = Regex("\\$?-?\\d{1,3}(,\\d{3})*(\\.\\d{1,2})?%?")
+
+    /**
+     * Sustituye cada Monto_Sensible del texto por el Patrón_Enmascarado ('••••'), preservando
+     * el resto del texto (incluidos los porcentajes). Réplica en Kotlin de maskAmounts en
+     * widgetSync.ts, necesaria porque el Control_Ojo alterna balanceHidden nativamente
+     * (sin round-trip a JS), por lo que cada Provider debe poder enmascarar el valor real
+     * que ya tiene persistido en FinanzasWidgetPrefs.
+     */
+    fun maskAmounts(text: String): String {
+        if (text.isEmpty()) return text
+        return AMOUNT_TOKEN.replace(text) { m -> if (m.value.endsWith("%")) m.value else "••••" }
+    }
+
+    /** Aplica maskAmounts solo si hidden es verdadero; si no, devuelve el texto original. */
+    fun maskIf(hidden: Boolean, text: String): String {
+        return if (hidden) maskAmounts(text) else text
+    }
 }

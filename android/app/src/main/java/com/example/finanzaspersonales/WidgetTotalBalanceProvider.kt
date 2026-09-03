@@ -23,8 +23,8 @@ class WidgetTotalBalanceProvider : AppWidgetProvider() {
             views.setTextColor(R.id.widget_total_balance_text, palette.text)
             views.setTextColor(R.id.widget_total_balance_currency, palette.muted)
 
-            views.setTextViewText(R.id.widget_total_balance_text, availableText)
-            views.setTextViewText(R.id.widget_total_balance_variation, variation)
+            views.setTextViewText(R.id.widget_total_balance_text, WidgetTheme.maskIf(balanceHidden, availableText))
+            views.setTextViewText(R.id.widget_total_balance_variation, WidgetTheme.maskIf(balanceHidden, variation))
             views.setTextColor(
                 R.id.widget_total_balance_variation,
                 Color.parseColor(if (variation.startsWith("▼")) "#FDA4AF" else "#86EFAC")

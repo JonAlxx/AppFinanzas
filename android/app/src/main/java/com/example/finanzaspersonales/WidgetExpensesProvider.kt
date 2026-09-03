@@ -27,8 +27,8 @@ class WidgetExpensesProvider : AppWidgetProvider() {
             WidgetTheme.panel(views, R.id.widget_today_panel, palette)
             WidgetTheme.panel(views, R.id.widget_week_panel, palette)
 
-            views.setTextViewText(R.id.widget_today_text, todayText)
-            views.setTextViewText(R.id.widget_weekly_text, weeklyText)
+            views.setTextViewText(R.id.widget_today_text, WidgetTheme.maskIf(balanceHidden, todayText))
+            views.setTextViewText(R.id.widget_weekly_text, WidgetTheme.maskIf(balanceHidden, weeklyText))
             views.setTextColor(R.id.widget_expenses_title, palette.text)
             views.setTextColor(R.id.widget_today_label, palette.muted)
             views.setTextColor(R.id.widget_week_label, palette.muted)

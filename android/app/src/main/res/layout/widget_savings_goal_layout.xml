@@ -61,9 +61,9 @@
                 android:ellipsize="end" />
             <ImageView
                 android:id="@+id/widget_eye_btn"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:padding="5dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="8dp"
                 android:src="@drawable/ic_widget_eye" />
         </LinearLayout>
 

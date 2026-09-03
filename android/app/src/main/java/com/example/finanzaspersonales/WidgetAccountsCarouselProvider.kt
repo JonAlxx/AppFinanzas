@@ -67,7 +67,7 @@ class WidgetAccountsCarouselProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_account_balance_label, balanceLabel)
             views.setTextViewText(R.id.widget_account_network, network)
             views.setTextViewText(R.id.widget_card_number, masked)
-            views.setTextViewText(R.id.widget_account_balance, balance)
+            views.setTextViewText(R.id.widget_account_balance, WidgetTheme.maskIf(balanceHidden, balance))
             views.setTextViewText(R.id.widget_card_counter, counterText)
 
             // Elementos de texto secundario (que no dependen del color de cuenta) sí siguen la paleta de tema.

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useReducer, useRef } from 'react';
-import { Linking } from 'react-native';
+import { AppState as RNAppState, Linking, NativeModules } from 'react-native';
 import { AppNotification, AppState } from '../data/types';
 import { materializeRecurring, upcomingPayments } from '../data/selectors';
 import { Action, initialState, reducer } from './reducer';
@@ -51,17 +51,29 @@ export function AppStateProvider({
     }
   }, [state.accounts, state.recurring, state.transactions]);
 
-  // Deep_Link_Toggle listener: reconoce finanzasapp://toggle-balance-hidden y despacha
-  // TOGGLE_HIDE, sin afectar la pila de navegación (independiente del listener de NavigationContext).
+  // Reconciliación de balanceHidden: el Control_Ojo de los Widgets alterna balanceHidden
+  // directamente en FinanzasWidgetPrefs (nativo, sin abrir la app). Al montar la app y cada
+  // vez que vuelve a foreground, se lee ese valor real y se adopta como fuente de verdad,
+  // evitando que el balanceHidden desincronizado en memoria de la app revierta el toggle
+  // hecho desde un Widget mientras la app no estaba activa.
   useEffect(() => {
-    const handleUrl = (url: string | null) => {
-      if (url && url.includes('toggle-balance-hidden')) {
-        dispatch({ type: 'TOGGLE_HIDE' });
-      }
+    const reconcileBalanceHidden = () => {
+      if (!NativeModules.WidgetSyncModule?.getBalanceHidden) return;
+      NativeModules.WidgetSyncModule.getBalanceHidden()
+        .then((hidden: boolean) => {
+          if (hidden !== state.balanceHidden) {
+            dispatch({ type: 'SET_BALANCE_HIDDEN', hidden });
+          }
+        })
+        .catch(() => {});
     };
-    Linking.getInitialURL().then(handleUrl).catch(() => {});
-    const sub = Linking.addEventListener('url', event => handleUrl(event.url));
+
+    reconcileBalanceHidden();
+    const sub = RNAppState.addEventListener('change', nextState => {
+      if (nextState === 'active') reconcileBalanceHidden();
+    });
     return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-materialization of recurring rules is disabled because the user requested manual confirmation.

@@ -27,6 +27,7 @@ export type Action =
   | { type: 'TOGGLE_THEME' }
   | { type: 'SET_THEME'; dark: boolean }
   | { type: 'TOGGLE_HIDE' }
+  | { type: 'SET_BALANCE_HIDDEN'; hidden: boolean }
   | { type: 'TOGGLE_CARD_VISIBILITY'; cardType: string }
   | { type: 'MARK_ALL_READ' }
   | { type: 'UPDATE_PROFILE'; profile: UserProfile }
@@ -245,6 +246,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, dark: action.dark };
     case 'TOGGLE_HIDE':
       return { ...state, balanceHidden: !state.balanceHidden };
+    case 'SET_BALANCE_HIDDEN':
+      return { ...state, balanceHidden: action.hidden };
     case 'TOGGLE_CARD_VISIBILITY': {
       const hiddenCards = state.hiddenCards || [];
       const updated = hiddenCards.includes(action.cardType)

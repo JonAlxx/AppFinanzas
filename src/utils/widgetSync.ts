@@ -234,39 +234,15 @@ export function updateWidgetData(state: AppState) {
       isPositive: 'false'
     })));
 
-    // Enmascarado de Montos_Sensibles: se aplica aquí (una sola vez, antes de construir el payload
-    // final) para mantener una única fuente de verdad y evitar lógica de enmascarado duplicada
-    // en los 9 Providers Kotlin. Los porcentajes (budgetsJson[].value) NO se enmascaran.
-    const hidden = !!state.balanceHidden;
-    const balanceHiddenStr = hidden ? 'true' : 'false';
-
-    const maskedAvailableStr = maskIf(hidden, availableStr);
-    const maskedAvailableVariation = maskIf(hidden, availableVariation);
-    const maskedCutoffStr = maskIf(hidden, cutoffStr);
-    const maskedTodayStr = maskIf(hidden, todayStr);
-    const maskedWeeklyStr = maskIf(hidden, weeklyStr);
-    const maskedMainAccountBalance = maskIf(hidden, mainAccountBalance);
-    const maskedBudgetLine1 = maskIf(hidden, budgetLine1);
-    const maskedBudgetLine2 = maskIf(hidden, budgetLine2);
-    const maskedGoalAmount = maskIf(hidden, goalAmount);
-    const maskedCategoryTotal = maskIf(hidden, categoryTotal);
-    const maskedCatLine1 = maskIf(hidden, catLine1);
-    const maskedCatLine2 = maskIf(hidden, catLine2);
-    const maskedPaymentLine1 = maskIf(hidden, paymentLine1);
-    const maskedPaymentLine2 = maskIf(hidden, paymentLine2);
-    const maskedRecentTx1Val = maskIf(hidden, recentTx1Val);
-    const maskedRecentTx2Val = maskIf(hidden, recentTx2Val);
-
-    const maskedAccountsJson = hidden
-      ? JSON.stringify(JSON.parse(accountsJson).map((it: any) => ({ ...it, value: maskAmounts(it.value) })))
-      : accountsJson;
-    const maskedRecentTxsJson = hidden
-      ? JSON.stringify(JSON.parse(recentTxsJson).map((it: any) => ({ ...it, value: maskAmounts(it.value) })))
-      : recentTxsJson;
-    const maskedPaymentsJson = hidden
-      ? JSON.stringify(JSON.parse(paymentsJson).map((it: any) => ({ ...it, value: maskAmounts(it.value) })))
-      : paymentsJson;
-    // budgetsJson[].value es un porcentaje, no un Monto_Sensible: no se enmascara.
+    // El enmascarado de Montos_Sensibles ya NO se aplica aquí: se hace en Kotlin
+    // (WidgetTheme.maskIf) en el momento de renderizar cada Provider, leyendo la bandera
+    // balanceHidden directamente de FinanzasWidgetPrefs. Esto permite que el Control_Ojo
+    // de cada widget alterne instantáneamente sin necesidad de reabrir la app (el toggle
+    // se resuelve con un BroadcastReceiver nativo, no con un Intent que active la Activity).
+    // Por eso aquí siempre se envían los valores REALES; balanceHidden solo sirve para
+    // que la app (modo incógnito del Dashboard) siga pudiendo sembrar/sincronizar el mismo
+    // estado hacia los widgets cuando el usuario cambia el toggle dentro de la app.
+    const balanceHiddenStr = state.balanceHidden ? 'true' : 'false';
 
     console.log('[WidgetSync] Updated dynamic data for all 9 widgets (Theme:', themeMode, ') with scrollable lists');
 
@@ -275,25 +251,25 @@ export function updateWidgetData(state: AppState) {
         NativeModules.WidgetSyncModule.updateFullWidgetDataWithLists(
           themeMode,
           balanceHiddenStr,
-          maskedAvailableStr, maskedAvailableVariation, maskedCutoffStr, maskedTodayStr, maskedWeeklyStr,
-          mainAccountName, mainAccountType, mainAccountMasked, maskedMainAccountBalance,
-          budgetDaysLeft, maskedBudgetLine1, maskedBudgetLine2,
-          goalName, maskedGoalAmount, goalPercentage, goalDate,
-          maskedCategoryTotal, maskedCatLine1, maskedCatLine2,
-          maskedPaymentLine1, maskedPaymentLine2,
-          recentTx1Name, maskedRecentTx1Val, recentTx1Meta, recentTx2Name, maskedRecentTx2Val, recentTx2Meta,
-          maskedAccountsJson, maskedRecentTxsJson, budgetsJson, maskedPaymentsJson
+          availableStr, availableVariation, cutoffStr, todayStr, weeklyStr,
+          mainAccountName, mainAccountType, mainAccountMasked, mainAccountBalance,
+          budgetDaysLeft, budgetLine1, budgetLine2,
+          goalName, goalAmount, goalPercentage, goalDate,
+          categoryTotal, catLine1, catLine2,
+          paymentLine1, paymentLine2,
+          recentTx1Name, recentTx1Val, recentTx1Meta, recentTx2Name, recentTx2Val, recentTx2Meta,
+          accountsJson, recentTxsJson, budgetsJson, paymentsJson
         );
       } else {
         NativeModules.WidgetSyncModule.updateFullWidgetDataWithTheme(
           themeMode,
-          maskedAvailableStr, maskedCutoffStr, maskedTodayStr, maskedWeeklyStr,
-          mainAccountName, mainAccountType, mainAccountMasked, maskedMainAccountBalance,
-          budgetDaysLeft, maskedBudgetLine1, maskedBudgetLine2,
-          goalName, maskedGoalAmount, goalPercentage, goalDate,
-          maskedCatLine1, maskedCatLine2,
-          maskedPaymentLine1, maskedPaymentLine2,
-          recentTx1Name, maskedRecentTx1Val, recentTx2Name, maskedRecentTx2Val
+          availableStr, cutoffStr, todayStr, weeklyStr,
+          mainAccountName, mainAccountType, mainAccountMasked, mainAccountBalance,
+          budgetDaysLeft, budgetLine1, budgetLine2,
+          goalName, goalAmount, goalPercentage, goalDate,
+          catLine1, catLine2,
+          paymentLine1, paymentLine2,
+          recentTx1Name, recentTx1Val, recentTx2Name, recentTx2Val
         );
       }
     }

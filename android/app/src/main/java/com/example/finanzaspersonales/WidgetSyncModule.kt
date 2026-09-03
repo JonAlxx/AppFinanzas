@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
@@ -11,6 +12,19 @@ import com.facebook.react.bridge.ReactMethod
 class WidgetSyncModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     override fun getName(): String = "WidgetSyncModule"
+
+    /**
+     * Devuelve el balanceHidden vigente en FinanzasWidgetPrefs. El Control_Ojo de los Widgets
+     * puede alternar este valor sin abrir la app (vía WidgetEyeToggleReceiver); la app lo lee
+     * al iniciar/reanudar para reconciliar su propio state.balanceHidden con el último valor
+     * real, evitando que una sincronización posterior de la app revierta el toggle hecho
+     * desde un Widget mientras la app no estaba activa.
+     */
+    @ReactMethod
+    fun getBalanceHidden(promise: Promise) {
+        val prefs = reactApplicationContext.getSharedPreferences("FinanzasWidgetPrefs", Context.MODE_PRIVATE)
+        promise.resolve(prefs.getString("balanceHidden", "false") == "true")
+    }
 
     @ReactMethod
     fun updateFullWidgetDataWithLists(

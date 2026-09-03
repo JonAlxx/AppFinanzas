@@ -37,9 +37,9 @@
 
         <ImageView
             android:id="@+id/widget_eye_btn"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:padding="6dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:padding="8dp"
             android:background="@drawable/widget_panel_dark"
             android:src="@drawable/ic_widget_eye"
             android:scaleType="fitCenter" />
