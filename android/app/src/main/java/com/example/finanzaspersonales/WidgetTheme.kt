@@ -55,4 +55,20 @@ object WidgetTheme {
             else -> R.drawable.widget_card_indigo
         }
     }
+
+    /**
+     * Resuelve el drawable del Control_Ojo según el estado sincronizado de balanceHidden.
+     * Es una función pura: depende únicamente del booleano de entrada.
+     */
+    fun eyeIcon(hidden: Boolean): Int {
+        return if (hidden) R.drawable.ic_widget_eye_off else R.drawable.ic_widget_eye
+    }
+
+    /**
+     * Aplica un tintado dinámico a un ImageView vectorial (Icono_Vectorial) según la paleta activa,
+     * evitando que cada Provider repita `setInt(id, "setColorFilter", color)` de forma inconsistente.
+     */
+    fun tintImage(views: RemoteViews, imageViewId: Int, color: Int) {
+        views.setInt(imageViewId, "setColorFilter", color)
+    }
 }

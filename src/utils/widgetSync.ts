@@ -3,6 +3,27 @@ import { AppState } from '../data/types';
 import { computeAccountBalance, getCardCutoffProjection, upcomingPayments } from '../data/selectors';
 import { catById, labelType } from '../data/catalog';
 
+// Coincide con montos monetarios (con o sin signo, con separador de miles y decimales)
+// pero preserva explícitamente los porcentajes, ya que un porcentaje no es un Monto_Sensible.
+const AMOUNT_TOKEN = /\$?-?\d{1,3}(,\d{3})*(\.\d{1,2})?%?/g;
+
+/**
+ * Sustituye cada Monto_Sensible encontrado en el texto por el Patrón_Enmascarado ('••••'),
+ * preservando el resto del texto (incluidos los porcentajes) sin alterar.
+ */
+export function maskAmounts(text: string): string {
+  if (!text) return text;
+  return text.replace(AMOUNT_TOKEN, (match) => (match.endsWith('%') ? match : '••••'));
+}
+
+/**
+ * Aplica maskAmounts solo si balanceHidden es verdadero; en caso contrario devuelve
+ * el texto original sin modificar.
+ */
+export function maskIf(hidden: boolean, text: string): string {
+  return hidden ? maskAmounts(text) : text;
+}
+
 export function updateWidgetData(state: AppState) {
   try {
     const now = new Date();
@@ -78,7 +99,7 @@ export function updateWidgetData(state: AppState) {
     const savedStr = activeGoal ? `$${(activeGoal.current / 100).toLocaleString('es-MX')}` : '$0';
     const targetStr = activeGoal ? `$${(activeGoal.target / 100).toLocaleString('es-MX')}` : '$0';
     const goalAmount = activeGoal ? `${savedStr} / ${targetStr}` : '$0.00';
-    const goalDate = activeGoal && activeGoal.deadline ? `📅 Límite: ${new Date(activeGoal.deadline).toLocaleDateString('es-MX')}` : 'Sin fecha límite';
+    const goalDate = activeGoal && activeGoal.deadline ? `Límite: ${new Date(activeGoal.deadline).toLocaleDateString('es-MX')}` : 'Sin fecha límite';
 
     // 5. Gastos por Categoría
     const catMap = new Map<string, number>();
@@ -174,7 +195,7 @@ export function updateWidgetData(state: AppState) {
       title: a.name,
       subtitle: a.last4 ? `**** **** **** ${a.last4}` : (a.type === 'CREDIT_CARD' ? 'Tarjeta Crédito' : 'Cuenta Débito'),
       value: `$${(displayBalance / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      icon: a.type === 'CREDIT_CARD' ? '💳' : (a.type === 'CASH' ? '💵' : '🏦'),
+      iconKey: a.type === 'CREDIT_CARD' ? 'credit' : (a.type === 'CASH' ? 'cash' : 'bank'),
       isPositive: 'true',
       type: labelType(a.type),
       balanceLabel: a.type === 'CREDIT_CARD' ? 'DISPONIBLE' : 'SALDO',
@@ -192,7 +213,7 @@ export function updateWidgetData(state: AppState) {
         title: tx.note || cat?.name || 'Movimiento',
         subtitle: dateStr,
         value: `${isInc ? '+' : '-'}$${(Math.abs(tx.amount) / 100).toFixed(2)}`,
-        icon: cat?.icon || (isInc ? '💼' : '🛒'),
+        iconKey: isInc ? 'income' : 'expense',
         isPositive: isInc ? 'true' : 'false'
       };
     }));
@@ -213,31 +234,66 @@ export function updateWidgetData(state: AppState) {
       isPositive: 'false'
     })));
 
+    // Enmascarado de Montos_Sensibles: se aplica aquí (una sola vez, antes de construir el payload
+    // final) para mantener una única fuente de verdad y evitar lógica de enmascarado duplicada
+    // en los 9 Providers Kotlin. Los porcentajes (budgetsJson[].value) NO se enmascaran.
+    const hidden = !!state.balanceHidden;
+    const balanceHiddenStr = hidden ? 'true' : 'false';
+
+    const maskedAvailableStr = maskIf(hidden, availableStr);
+    const maskedAvailableVariation = maskIf(hidden, availableVariation);
+    const maskedCutoffStr = maskIf(hidden, cutoffStr);
+    const maskedTodayStr = maskIf(hidden, todayStr);
+    const maskedWeeklyStr = maskIf(hidden, weeklyStr);
+    const maskedMainAccountBalance = maskIf(hidden, mainAccountBalance);
+    const maskedBudgetLine1 = maskIf(hidden, budgetLine1);
+    const maskedBudgetLine2 = maskIf(hidden, budgetLine2);
+    const maskedGoalAmount = maskIf(hidden, goalAmount);
+    const maskedCategoryTotal = maskIf(hidden, categoryTotal);
+    const maskedCatLine1 = maskIf(hidden, catLine1);
+    const maskedCatLine2 = maskIf(hidden, catLine2);
+    const maskedPaymentLine1 = maskIf(hidden, paymentLine1);
+    const maskedPaymentLine2 = maskIf(hidden, paymentLine2);
+    const maskedRecentTx1Val = maskIf(hidden, recentTx1Val);
+    const maskedRecentTx2Val = maskIf(hidden, recentTx2Val);
+
+    const maskedAccountsJson = hidden
+      ? JSON.stringify(JSON.parse(accountsJson).map((it: any) => ({ ...it, value: maskAmounts(it.value) })))
+      : accountsJson;
+    const maskedRecentTxsJson = hidden
+      ? JSON.stringify(JSON.parse(recentTxsJson).map((it: any) => ({ ...it, value: maskAmounts(it.value) })))
+      : recentTxsJson;
+    const maskedPaymentsJson = hidden
+      ? JSON.stringify(JSON.parse(paymentsJson).map((it: any) => ({ ...it, value: maskAmounts(it.value) })))
+      : paymentsJson;
+    // budgetsJson[].value es un porcentaje, no un Monto_Sensible: no se enmascara.
+
     console.log('[WidgetSync] Updated dynamic data for all 9 widgets (Theme:', themeMode, ') with scrollable lists');
 
     if (NativeModules.WidgetSyncModule) {
       if (NativeModules.WidgetSyncModule.updateFullWidgetDataWithLists) {
         NativeModules.WidgetSyncModule.updateFullWidgetDataWithLists(
           themeMode,
-          availableStr, availableVariation, cutoffStr, todayStr, weeklyStr,
-          mainAccountName, mainAccountType, mainAccountMasked, mainAccountBalance,
-          budgetDaysLeft, budgetLine1, budgetLine2,
-          goalName, goalAmount, goalPercentage, goalDate,
-          categoryTotal, catLine1, catLine2,
-          paymentLine1, paymentLine2,
-          recentTx1Name, recentTx1Val, recentTx1Meta, recentTx2Name, recentTx2Val, recentTx2Meta,
-          accountsJson, recentTxsJson, budgetsJson, paymentsJson
+          balanceHiddenStr,
+          maskedAvailableStr, maskedAvailableVariation, maskedCutoffStr, maskedTodayStr, maskedWeeklyStr,
+          mainAccountName, mainAccountType, mainAccountMasked, maskedMainAccountBalance,
+          budgetDaysLeft, maskedBudgetLine1, maskedBudgetLine2,
+          goalName, maskedGoalAmount, goalPercentage, goalDate,
+          maskedCategoryTotal, maskedCatLine1, maskedCatLine2,
+          maskedPaymentLine1, maskedPaymentLine2,
+          recentTx1Name, maskedRecentTx1Val, recentTx1Meta, recentTx2Name, maskedRecentTx2Val, recentTx2Meta,
+          maskedAccountsJson, maskedRecentTxsJson, budgetsJson, maskedPaymentsJson
         );
       } else {
         NativeModules.WidgetSyncModule.updateFullWidgetDataWithTheme(
           themeMode,
-          availableStr, cutoffStr, todayStr, weeklyStr,
-          mainAccountName, mainAccountType, mainAccountMasked, mainAccountBalance,
-          budgetDaysLeft, budgetLine1, budgetLine2,
-          goalName, goalAmount, goalPercentage, goalDate,
-          catLine1, catLine2,
-          paymentLine1, paymentLine2,
-          recentTx1Name, recentTx1Val, recentTx2Name, recentTx2Val
+          maskedAvailableStr, maskedCutoffStr, maskedTodayStr, maskedWeeklyStr,
+          mainAccountName, mainAccountType, mainAccountMasked, maskedMainAccountBalance,
+          budgetDaysLeft, maskedBudgetLine1, maskedBudgetLine2,
+          goalName, maskedGoalAmount, goalPercentage, goalDate,
+          maskedCatLine1, maskedCatLine2,
+          maskedPaymentLine1, maskedPaymentLine2,
+          recentTx1Name, maskedRecentTx1Val, recentTx2Name, maskedRecentTx2Val
         );
       }
     }

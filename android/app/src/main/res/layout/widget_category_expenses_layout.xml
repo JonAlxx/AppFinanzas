@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_surface_dark"
-    android:padding="14dp">
+    android:padding="16dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -37,7 +37,7 @@
                 android:layout_height="wrap_content"
                 android:text="$0.00"
                 android:textColor="#F8FAFC"
-                android:textSize="12sp"
+                android:textSize="14sp"
                 android:textStyle="bold"
                 android:layout_marginTop="2dp" />
 
@@ -59,11 +59,19 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                <ImageView
+                    android:id="@+id/widget_cat_dot1"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:src="@drawable/ic_widget_dot"
+                    android:layout_marginEnd="6dp" />
                 <TextView
                     android:id="@+id/widget_cat_comida_pct"
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:text="Sin gastos registrados"
                     android:textColor="#F8FAFC"
                     android:textSize="11sp" />
@@ -73,16 +81,32 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:layout_marginTop="4dp">
+                <ImageView
+                    android:id="@+id/widget_cat_dot2"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:src="@drawable/ic_widget_dot"
+                    android:layout_marginEnd="6dp" />
                 <TextView
                     android:id="@+id/widget_cat_transporte_pct"
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:text=""
                     android:textColor="#94A3B8"
                     android:textSize="11sp" />
             </LinearLayout>
         </LinearLayout>
+
+        <ImageView
+            android:id="@+id/widget_eye_btn"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:padding="6dp"
+            android:src="@drawable/ic_widget_eye"
+            android:layout_marginStart="6dp" />
     </LinearLayout>
 
     <!-- Footer Link -->

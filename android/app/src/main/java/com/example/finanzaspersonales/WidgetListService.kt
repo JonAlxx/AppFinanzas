@@ -65,13 +65,17 @@ class WidgetListFactory(private val context: Context, private val intent: Intent
         val title = item["title"] ?: ""
         val subtitle = item["subtitle"] ?: ""
         val valStr = item["value"] ?: ""
-        val icon = item["icon"] ?: "💳"
+        val iconKey = item["iconKey"] ?: item["icon"] ?: "category"
         val isPositive = item["isPositive"] == "true"
+
+        val prefs = context.getSharedPreferences("FinanzasWidgetPrefs", Context.MODE_PRIVATE)
+        val palette = WidgetTheme.palette(prefs)
 
         views.setTextViewText(R.id.widget_item_title, title)
         views.setTextViewText(R.id.widget_item_subtitle, subtitle)
         views.setTextViewText(R.id.widget_item_value, valStr)
-        views.setTextViewText(R.id.widget_item_icon, icon)
+        views.setImageViewResource(R.id.widget_item_icon, WidgetIcons.forKey(iconKey))
+        WidgetTheme.tintImage(views, R.id.widget_item_icon, palette.accent)
 
         val colorHex = if (isPositive) "#10B981" else "#F43F5E"
         views.setTextColor(R.id.widget_item_value, android.graphics.Color.parseColor(colorHex))

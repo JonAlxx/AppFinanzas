@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_surface_dark"
-    android:padding="14dp">
+    android:padding="16dp">
 
     <!-- Header Row -->
     <LinearLayout
@@ -31,7 +31,15 @@
             android:text="● En vivo"
             android:textColor="#F43F5E"
             android:textSize="10sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:layout_marginEnd="8dp" />
+
+        <ImageView
+            android:id="@+id/widget_eye_btn"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:padding="5dp"
+            android:src="@drawable/ic_widget_eye" />
     </LinearLayout>
 
     <!-- Metrics Row -->

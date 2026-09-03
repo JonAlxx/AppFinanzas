@@ -13,43 +13,9 @@ class WidgetSyncModule(reactContext: ReactApplicationContext) : ReactContextBase
     override fun getName(): String = "WidgetSyncModule"
 
     @ReactMethod
-    fun updateWidgetData(availableText: String, cutoffText: String, todayText: String, weeklyText: String) {
-        updateFullWidgetData(
-            availableText, cutoffText, todayText, weeklyText,
-            "Cuenta Principal", "Débito", "**** **** **** 4532", availableText,
-            "12 días restantes", "Comida: $2,450 / $3,000 (82%)", "Transporte: $1,200 / $1,800 (67%)",
-            "Viaje a Cancún 🌴", "$20,450 / $30,000", "68%", "📅 Límite: 30 nov 2025",
-            "🟢 Comida (34%): $4,311.40", "🟠 Transporte (22%): $2,789.60",
-            "⭐ Suscripción Stream+: -$149.00", "🏠 Renta departamento: -$8,500.00",
-            "Soriana Híper", "-$523.40", "Transferencia recibida", "+$3,250.00"
-        )
-    }
-
-    @ReactMethod
-    fun updateFullWidgetData(
-        availableText: String, cutoffText: String, todayText: String, weeklyText: String,
-        mainAccountName: String, mainAccountType: String, mainAccountMasked: String, mainAccountBalance: String,
-        budgetDaysLeft: String, budgetLine1: String, budgetLine2: String,
-        goalName: String, goalAmount: String, goalPercentage: String, goalDate: String,
-        catLine1: String, catLine2: String,
-        paymentLine1: String, paymentLine2: String,
-        recentTx1Name: String, recentTx1Val: String, recentTx2Name: String, recentTx2Val: String
-    ) {
-        updateFullWidgetDataWithTheme(
-            "dark",
-            availableText, cutoffText, todayText, weeklyText,
-            mainAccountName, mainAccountType, mainAccountMasked, mainAccountBalance,
-            budgetDaysLeft, budgetLine1, budgetLine2,
-            goalName, goalAmount, goalPercentage, goalDate,
-            catLine1, catLine2,
-            paymentLine1, paymentLine2,
-            recentTx1Name, recentTx1Val, recentTx2Name, recentTx2Val
-        )
-    }
-
-    @ReactMethod
     fun updateFullWidgetDataWithLists(
         themeMode: String,
+        balanceHidden: String,
         availableText: String, availableVariation: String, cutoffText: String, todayText: String, weeklyText: String,
         mainAccountName: String, mainAccountType: String, mainAccountMasked: String, mainAccountBalance: String,
         budgetDaysLeft: String, budgetLine1: String, budgetLine2: String,
@@ -65,6 +31,7 @@ class WidgetSyncModule(reactContext: ReactApplicationContext) : ReactContextBase
 
         prefs.edit()
             .putString("themeMode", themeMode)
+            .putString("balanceHidden", balanceHidden)
             .putString("availableText", availableText)
             .putString("availableVariation", availableVariation)
             .putString("cutoffText", cutoffText)

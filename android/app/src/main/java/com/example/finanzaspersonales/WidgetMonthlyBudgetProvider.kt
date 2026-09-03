@@ -10,8 +10,8 @@ import android.widget.RemoteViews
 class WidgetMonthlyBudgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         val prefs = context.getSharedPreferences("FinanzasWidgetPrefs", Context.MODE_PRIVATE)
-        val isDark = prefs.getString("themeMode", "dark") == "dark"
-        val daysLeft = prefs.getString("budgetDaysLeft", "12 días restantes") ?: "12 días restantes"
+        val balanceHidden = prefs.getString("balanceHidden", "false") == "true"
+        val daysLeft = prefs.getString("budgetDaysLeft", "-- días restantes") ?: "-- días restantes"
         val line1 = prefs.getString("budgetLine1", "Sin presupuesto definido") ?: "Sin presupuesto definido"
         val line2 = prefs.getString("budgetLine2", "") ?: ""
         var progress1 = 0
@@ -35,14 +35,12 @@ class WidgetMonthlyBudgetProvider : AppWidgetProvider() {
             WidgetTheme.panel(views, R.id.widget_budget_icon2, palette)
             views.setTextColor(R.id.widget_budget_title, palette.text)
             views.setTextColor(R.id.widget_budget_days_left, palette.accent)
+            views.setTextColor(R.id.widget_budget_comida_text, palette.text)
+            views.setTextColor(R.id.widget_budget_transporte_text, palette.muted)
 
-            if (!isDark) {
-                views.setTextColor(R.id.widget_budget_comida_text, android.graphics.Color.parseColor("#0F172A"))
-                views.setTextColor(R.id.widget_budget_transporte_text, android.graphics.Color.parseColor("#475569"))
-            } else {
-                views.setTextColor(R.id.widget_budget_comida_text, android.graphics.Color.parseColor("#F8FAFC"))
-                views.setTextColor(R.id.widget_budget_transporte_text, android.graphics.Color.parseColor("#94A3B8"))
-            }
+            views.setImageViewResource(R.id.widget_eye_btn, WidgetTheme.eyeIcon(balanceHidden))
+            WidgetTheme.tintImage(views, R.id.widget_eye_btn, palette.text)
+            views.setOnClickPendingIntent(R.id.widget_eye_btn, WidgetActions.toggleBalancePendingIntent(context, 403))
 
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

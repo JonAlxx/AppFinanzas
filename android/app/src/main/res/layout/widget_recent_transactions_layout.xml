@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_surface_dark"
-    android:padding="14dp">
+    android:padding="16dp">
 
     <!-- Row 1 -->
     <LinearLayout
@@ -14,15 +14,19 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <TextView
+        <LinearLayout
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:id="@+id/widget_recent_icon_panel"
             android:background="@drawable/widget_panel_dark"
-            android:text="💳"
-            android:textSize="14sp"
             android:gravity="center"
-            android:layout_marginEnd="10dp" />
+            android:layout_marginEnd="10dp">
+            <ImageView
+                android:id="@+id/widget_recent_tx_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_widget_card" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="0dp"
@@ -50,7 +54,15 @@
             android:text="$0.00"
             android:textColor="#818CF8"
             android:textSize="12sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:layout_marginEnd="6dp" />
+
+        <ImageView
+            android:id="@+id/widget_eye_btn"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:padding="5dp"
+            android:src="@drawable/ic_widget_eye" />
     </LinearLayout>
 
     <!-- Row 2 -->

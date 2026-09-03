@@ -13,6 +13,7 @@ class WidgetUpcomingPaymentsProvider : AppWidgetProvider() {
         val palette = WidgetTheme.palette(prefs)
         val payment1 = prefs.getString("paymentLine1", "Sin pagos próximos") ?: "Sin pagos próximos"
         val payment2 = prefs.getString("paymentLine2", "") ?: ""
+        val balanceHidden = prefs.getString("balanceHidden", "false") == "true"
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_upcoming_payments_layout)
             WidgetTheme.surface(views, R.id.widget_upcoming_container, palette)
@@ -23,6 +24,10 @@ class WidgetUpcomingPaymentsProvider : AppWidgetProvider() {
             views.setTextColor(R.id.widget_upcoming_title, palette.text)
             views.setTextColor(R.id.widget_upcoming_payment1, palette.text)
             views.setTextColor(R.id.widget_upcoming_payment2, palette.muted)
+
+            views.setImageViewResource(R.id.widget_eye_btn, WidgetTheme.eyeIcon(balanceHidden))
+            WidgetTheme.tintImage(views, R.id.widget_eye_btn, palette.text)
+            views.setOnClickPendingIntent(R.id.widget_eye_btn, WidgetActions.toggleBalancePendingIntent(context, 406))
 
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

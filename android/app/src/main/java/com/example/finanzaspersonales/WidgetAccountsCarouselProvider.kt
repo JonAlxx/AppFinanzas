@@ -42,48 +42,47 @@ class WidgetAccountsCarouselProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         val prefs = context.getSharedPreferences("FinanzasWidgetPrefs", Context.MODE_PRIVATE)
         val jsonStr = prefs.getString("accountsJson", "[]") ?: "[]"
+        val cardIndex = prefs.getInt("cardIndex", 0)
 
-        var name = prefs.getString("mainAccountName", "Cuenta Principal") ?: "Cuenta Principal"
-        var type = prefs.getString("mainAccountType", "Débito") ?: "Débito"
-        var masked = prefs.getString("mainAccountMasked", "**** **** **** 0000") ?: "**** **** **** 0000"
-        var balance = prefs.getString("mainAccountBalance", "$0.00") ?: "$0.00"
-        var icon = "💳"
-        var balanceLabel = "SALDO"
-        var network = ""
-        var color = "indigo"
-        var counterText = "1 / 1"
+        val active = WidgetAccountsCarouselLogic.resolveActiveAccount(jsonStr, cardIndex)
+        val name = active.name
+        val type = active.type
+        val masked = active.masked
+        val balance = active.balance
+        val icon = active.iconKey
+        val balanceLabel = active.balanceLabel
+        val network = active.network
+        val color = active.color
+        val counterText = active.counterText
 
-        try {
-            val jsonArray = org.json.JSONArray(jsonStr)
-            val total = jsonArray.length()
-            if (total > 0) {
-                val idx = prefs.getInt("cardIndex", 0) % total
-                val obj = jsonArray.getJSONObject(idx)
-                name = obj.optString("title", name)
-                masked = obj.optString("subtitle", masked)
-                balance = obj.optString("value", balance)
-                type = obj.optString("type", type).uppercase()
-                icon = obj.optString("icon", icon)
-                balanceLabel = obj.optString("balanceLabel", balanceLabel)
-                network = obj.optString("network", network)
-                color = obj.optString("color", color)
-                counterText = "${idx + 1} / $total"
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        val palette = WidgetTheme.palette(prefs)
+        val balanceHidden = prefs.getString("balanceHidden", "false") == "true"
 
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_accounts_carousel_layout)
+            // El fondo del Widget_Tarjeta depende únicamente del color de cuenta, nunca del tema.
             views.setInt(R.id.widget_accounts_container, "setBackgroundResource", WidgetTheme.cardBackground(color))
             views.setTextViewText(R.id.widget_account_name, name)
             views.setTextViewText(R.id.widget_account_type, type)
-            views.setTextViewText(R.id.widget_account_icon, icon)
             views.setTextViewText(R.id.widget_account_balance_label, balanceLabel)
             views.setTextViewText(R.id.widget_account_network, network)
             views.setTextViewText(R.id.widget_card_number, masked)
             views.setTextViewText(R.id.widget_account_balance, balance)
             views.setTextViewText(R.id.widget_card_counter, counterText)
+
+            // Elementos de texto secundario (que no dependen del color de cuenta) sí siguen la paleta de tema.
+            views.setTextColor(R.id.widget_account_type, palette.muted)
+            views.setTextColor(R.id.widget_card_counter, palette.text)
+            views.setTextColor(R.id.widget_account_network, palette.text)
+
+            // Ícono de tipo de cuenta vectorial en vez de emoji, tintado por la paleta activa.
+            views.setImageViewResource(R.id.widget_account_type_icon, WidgetIcons.forKey(icon))
+            WidgetTheme.tintImage(views, R.id.widget_account_type_icon, palette.text)
+
+            // Control_Ojo sincronizado con balanceHidden global (no hay estado independiente por widget).
+            views.setImageViewResource(R.id.widget_eye_btn, WidgetTheme.eyeIcon(balanceHidden))
+            WidgetTheme.tintImage(views, R.id.widget_eye_btn, palette.text)
+            views.setOnClickPendingIntent(R.id.widget_eye_btn, WidgetActions.toggleBalancePendingIntent(context, 402))
 
             // Click Prev Card Arrow
             val prevIntent = Intent(context, WidgetAccountsCarouselProvider::class.java).apply {

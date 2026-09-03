@@ -12,8 +12,9 @@ class WidgetCategoryExpensesProvider : AppWidgetProvider() {
         val prefs = context.getSharedPreferences("FinanzasWidgetPrefs", Context.MODE_PRIVATE)
         val palette = WidgetTheme.palette(prefs)
         val total = prefs.getString("categoryTotal", "$0.00") ?: "$0.00"
-        val line1 = prefs.getString("catLine1", "🟢 Comida (34%): $4,311.40") ?: "🟢 Comida (34%): $4,311.40"
-        val line2 = prefs.getString("catLine2", "🟠 Transporte (22%): $2,789.60") ?: "🟠 Transporte (22%): $2,789.60"
+        val line1 = prefs.getString("catLine1", "Sin gastos registrados") ?: "Sin gastos registrados"
+        val line2 = prefs.getString("catLine2", "") ?: ""
+        val balanceHidden = prefs.getString("balanceHidden", "false") == "true"
 
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_category_expenses_layout)
@@ -25,6 +26,14 @@ class WidgetCategoryExpensesProvider : AppWidgetProvider() {
             views.setTextColor(R.id.widget_cat_total_val, palette.text)
             views.setTextColor(R.id.widget_cat_comida_pct, palette.text)
             views.setTextColor(R.id.widget_cat_transporte_pct, palette.muted)
+
+            // Dots de ranking tintados por posición (1ra categoría = acento, 2da = muted), no por emoji.
+            WidgetTheme.tintImage(views, R.id.widget_cat_dot1, palette.accent)
+            WidgetTheme.tintImage(views, R.id.widget_cat_dot2, palette.muted)
+
+            views.setImageViewResource(R.id.widget_eye_btn, WidgetTheme.eyeIcon(balanceHidden))
+            WidgetTheme.tintImage(views, R.id.widget_eye_btn, palette.text)
+            views.setOnClickPendingIntent(R.id.widget_eye_btn, WidgetActions.toggleBalancePendingIntent(context, 405))
 
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useEffect, useReducer, useRef } from 'react';
-import { AppNotification, AppState, Recurring } from '../data/types';
-import { calculateStatementBalance, materializeRecurring, upcomingPayments } from '../data/selectors';
+import { Linking } from 'react-native';
+import { AppNotification, AppState } from '../data/types';
+import { materializeRecurring, upcomingPayments } from '../data/selectors';
 import { Action, initialState, reducer } from './reducer';
 import { saveState } from './persistence';
 import { scheduleRecurringNotifications, scheduleCreditCardNotifications } from '../utils/notifications';
 import { updateWidgetData } from '../utils/widgetSync';
+import { syncAutoCreditCardRule } from './autoCreditCardSync';
 
 interface AppStateContextValue {
   state: AppState;
@@ -39,30 +41,28 @@ export function AppStateProvider({
   const [state, dispatch] = useReducer(reducer, seed);
   const materializedRef = useRef(false);
 
-  // Auto-sync linked recurring rules for credit card accounts
+  // Auto-sync linked recurring rules for credit card accounts: crea la Regla_Recurrente_Automática_TDC
+  // si no existe, y mantiene su amount sincronizado con el saldo de corte vigente
+  // (calculateStatementBalance) en lugar de dejarlo congelado al momento de su creación.
   useEffect(() => {
-    const creditCards = state.accounts.filter(a => a.type === 'CREDIT_CARD' && a.paymentDay);
-    for (const cc of creditCards) {
-      const exists = state.recurring.some(r => r.autoCreditCardId === cc.id);
-      if (!exists) {
-        const statementBal = calculateStatementBalance(cc, state.transactions);
-        const recRule: Recurring = {
-          id: 'rec-cc-' + cc.id,
-          type: 'EXPENSE',
-          amount: statementBal,
-          accountId: cc.id,
-          categoryId: 'cat-debt',
-          note: `Pago de Tarjeta ${cc.name}`,
-          frequency: 'monthly',
-          dayOfMonth: cc.paymentDay,
-          startDate: Date.now(),
-          active: true,
-          autoCreditCardId: cc.id,
-        };
-        dispatch({ type: 'ADD_RECURRING', rule: recRule });
-      }
+    const actions = syncAutoCreditCardRule(state.accounts, state.recurring, state.transactions);
+    for (const action of actions) {
+      dispatch(action);
     }
   }, [state.accounts, state.recurring, state.transactions]);
+
+  // Deep_Link_Toggle listener: reconoce finanzasapp://toggle-balance-hidden y despacha
+  // TOGGLE_HIDE, sin afectar la pila de navegación (independiente del listener de NavigationContext).
+  useEffect(() => {
+    const handleUrl = (url: string | null) => {
+      if (url && url.includes('toggle-balance-hidden')) {
+        dispatch({ type: 'TOGGLE_HIDE' });
+      }
+    };
+    Linking.getInitialURL().then(handleUrl).catch(() => {});
+    const sub = Linking.addEventListener('url', event => handleUrl(event.url));
+    return () => sub.remove();
+  }, []);
 
   // Auto-materialization of recurring rules is disabled because the user requested manual confirmation.
   /*

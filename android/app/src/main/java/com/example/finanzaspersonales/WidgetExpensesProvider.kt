@@ -19,6 +19,7 @@ class WidgetExpensesProvider : AppWidgetProvider() {
         val palette = WidgetTheme.palette(prefs)
         val todayText = prefs.getString("todayText", "$0.00") ?: "$0.00"
         val weeklyText = prefs.getString("weeklyText", "$0.00") ?: "$0.00"
+        val balanceHidden = prefs.getString("balanceHidden", "false") == "true"
 
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_expenses_layout)
@@ -31,6 +32,10 @@ class WidgetExpensesProvider : AppWidgetProvider() {
             views.setTextColor(R.id.widget_expenses_title, palette.text)
             views.setTextColor(R.id.widget_today_label, palette.muted)
             views.setTextColor(R.id.widget_week_label, palette.muted)
+
+            views.setImageViewResource(R.id.widget_eye_btn, WidgetTheme.eyeIcon(balanceHidden))
+            WidgetTheme.tintImage(views, R.id.widget_eye_btn, palette.text)
+            views.setOnClickPendingIntent(R.id.widget_eye_btn, WidgetActions.toggleBalancePendingIntent(context, 408))
 
             // Intent for main container tap
             val intent = Intent(context, MainActivity::class.java).apply {
